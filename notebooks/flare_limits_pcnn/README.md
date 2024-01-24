@@ -38,23 +38,24 @@ Visual explainability results of the models prediction and estimations of foreca
 
 ## Data
 
-The SDO images used to train and evaluate the models are available from the [SDOCompactML Dataset](https://doi.org/10.5281/zenodo.10465437)  
-Only small_blos.zip and small_0193x0211x0094.zip are used in this work (448x448 pixels images)  
-Download both zip files and unzip them in PATH_IMAGES (c.f. Setup section or config.py file)
+The SDO images used to train and evaluate the models are available from the [SDOCompactML Dataset](https://doi.org/10.5281/zenodo.10465437)    
+Only small_blos.zip and small_0193x0211x0094.zip are used in this work (448x448 pixels images)    
+Download both zip files and unzip them in PATH_IMAGES (c.f. Setup section or config.py file)  
 
-The flare catalogs used to derived time-windows labels are available from the [Plutino Flare Catalog](https://doi.org/10.5281/zenodo.10560188)
-Download all files and place them in PATH_ROOT_DRIVE_DS/'Events_Catalogs' (c.f. Setup section config.py file)
+The flare catalogs used to derived time-windows labels are available from the [Plutino Flare Catalog](https://doi.org/10.5281/zenodo.10560188)  
+Download all files and place them in PATH_ROOT_DRIVE_DS/'Events_Catalogs' (c.f. Setup section config.py file)  
 
 ## Setup
 
-The project is organised with the  structure provided below.
-Set your own PATH_ROOT_DRIVE and PATH_ROOT_LOCAL in config.py
-Then run config.initProject() to create the project folders.
-Place zipped images files in PATH_ROOT_DRIVE/Datasets/Images (or alternatively directly unzipped in PATH_IMAGES (PATH_ROOT_LOCAL/'images')
-Place event catalogs from [Plutino Flare Catalog](https://doi.org/10.5281/zenodo.10560188) in PATH_ROOT_DRIVE/'Datasets/Events_Catalogs'
-CV-results from the paper are already available in the project's folder 'Results_Paper_PCNN'
-Trained model and test prediction are not provided for storage reasons.
-If you want to rerun all results without retraining models and computing prediction (skipping notebook 1 and 3) feel free to ask me the saved trained models and prediction 
+The project is organised with the  structure provided below.  
+Set your own PATH_ROOT_DRIVE and PATH_ROOT_LOCAL in config.py  
+Then run config.initProject() to create the project folders.  
+Place zipped images files in PATH_ROOT_DRIVE/Datasets/Images (or alternatively directly unzipped in PATH_IMAGES (PATH_ROOT_LOCAL/'images')  
+Place event catalogs from [Plutino Flare Catalog](https://doi.org/10.5281/zenodo.10560188) in PATH_ROOT_DRIVE/'Datasets/Events_Catalogs'  
+CV-results from the paper are already available in the project's folder 'Results_Paper_PCNN'  
+Trained model and test prediction are not provided for storage reasons.  
+If you want to rerun all results without retraining models and computing prediction (skipping notebook 1 and 3)   
+feel free to ask me the saved trained models and prediction 
 and respectively place them in PATH_RES/'Results_Paper_PCNN/models' and PATH_RES/'Results_Paper_PCNN/pred_test'
 ```
 PATH_ROOT_DRIVE
