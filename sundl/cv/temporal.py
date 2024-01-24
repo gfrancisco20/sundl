@@ -115,15 +115,19 @@ def chunks2fold_balancedAllocation(chunks,
 def instantiateFolds(fl_history,
                      chunks, 
                      folds, 
-                     testSplitDate, 
+                     testSplitDate = None, 
                      bufferTest = pd.DateOffset(days=27),  
                      classes = mpfTresh.keys(),
                      verbose = 1
   ):
   # Train / test split
-  dfTest = fl_history[fl_history.index >= testSplitDate + bufferTest]
+  if testSplitDate is not None:
+    dfTest = fl_history[fl_history.index >= testSplitDate + bufferTest]
 
-  dfTrain = fl_history[fl_history.index < testSplitDate]
+    dfTrain = fl_history[fl_history.index < testSplitDate]
+  else:
+    dfTrain = fl_history
+    dfTest = None
 
   dfFolds = {}
 
