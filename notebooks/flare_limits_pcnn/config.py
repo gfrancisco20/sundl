@@ -1,5 +1,5 @@
 """
-Set here pathes, notebook configs and utils
+Set here pathes, notebook configs and general utils
 
 The project is organised with the below structure.
 After seting up your own PATH_ROOT_DRIVE and PATH_ROOT_LOCAL
@@ -54,6 +54,31 @@ import sys
 import os
 from pathlib import Path
 
+__all__ = [
+    'PATH_SUNDL',
+    'COLAB',
+    'CLEAN_LOCAL',
+    'MIXED_PREC',
+    'PATH_ROOT_DRIVE',
+    'PATH_ROOT_LOCAL',
+    'PATH_ROOT_DRIVE_DS',
+    'PATH_IMAGES',
+    'PATH_FOLDS',
+    'PATH_RES',
+    'PATH_FLCATALOG',
+    'PATH_CR_RATES',
+    'PATH_MISSING_POS_DATES',
+    'PATH_FLCATALOG_WITH_POS',
+    'F_PATH_WINDOWS',
+    'F_PATH_CHUNKS',
+    'F_PATH_ALLOC',
+    'F_PATH_FOLDS',
+    'F_PATH_TEST',
+    'F_PATH_PREDS',
+    'F_PATH_LABEL_PATCHES',
+    'initProject'
+    ]
+
 PATH_SUNDL = '../../'
 sys.path.append(PATH_SUNDL)
 
@@ -68,8 +93,8 @@ if COLAB:
 else:
   PATH_ROOT_DRIVE = Path("/Users/greg/Google Drive/Mi unidad/Projects/Forecast")
   PATH_ROOT_LOCAL = Path("/Users/greg/session")
-  if not PATH_ROOT_LOCAL.exists():
-    os.makedirs(PATH_ROOT_LOCAL)
+  # if not PATH_ROOT_LOCAL.exists():
+  #   os.makedirs(PATH_ROOT_LOCAL)
   
 PATH_ROOT_DRIVE_DS = PATH_ROOT_DRIVE/'Datasets'
 PATH_IMAGES        = PATH_ROOT_LOCAL/'images'
@@ -116,10 +141,4 @@ def initProject():
   for subFolder in ['Chunks','Allocation', 'FoldsTrainVal', 'OperationalTest']:
     if not (PATH_FOLDS/subFolder).exists():
       os.mkdir(PATH_FOLDS/subFolder)
-      
-  
     
-  
-  
-PATH_IMAGES        = PATH_ROOT_LOCAL/'images'
-PATH_FOLDS         = PATH_ROOT_DRIVE/'Folds/Flare/'
