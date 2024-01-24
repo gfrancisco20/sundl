@@ -1,3 +1,3 @@
 ## Flare limits and PCNN
 
-Go to [ReadMe]([ReadMe](https://github.com/gfrancisco20/sundl/blob/master/notebooks/flare_limits_pcnn/README.md)https://github.com/gfrancisco20/sundl/blob/master/notebooks/flare_limits_pcnn/README.md)
+Go to [ReadMe](https://github.com/gfrancisco20/sundl/blob/master/notebooks/flare_limits_pcnn/README.md)
