@@ -80,26 +80,29 @@ __all__ = [
     ]
 
 PATH_SUNDL = '../../'
+PATH_PROJECT = f'{PATH_SUNDL}/notebooks/flare_limits_pcnn'
 sys.path.append(PATH_SUNDL)
+sys.path.append(PATH_PROJECT)
 
    
 COLAB = False
 CLEAN_LOCAL = False
 MIXED_PREC = False
 
-if COLAB:
-  PATH_ROOT_DRIVE = Path("/content/drive/MyDrive/Projects/Forecast")
-  PATH_ROOT_LOCAL = Path("/content/session")
-else:
-  PATH_ROOT_DRIVE = Path("/Users/greg/Google Drive/Mi unidad/Projects/Forecast")
-  PATH_ROOT_LOCAL = Path("/Users/greg/session")
-  # if not PATH_ROOT_LOCAL.exists():
-  #   os.makedirs(PATH_ROOT_LOCAL)
+# ! keep the white spaces
+PATH_ROOT_DRIVE = Path("/Users/greg/Google Drive/Mi unidad/Projects/Forecast")
+PATH_ROOT_LOCAL = Path("/Users/greg/session")
+  
+if isinstance(PATH_ROOT_DRIVE,str):
+  # ! do not put white spaces
+  PATH_ROOT_DRIVE=Path(PATH_ROOT_DRIVE)
+if isinstance(PATH_ROOT_LOCAL,str):
+  PATH_ROOT_LOCAL=Path(PATH_ROOT_LOCAL)
   
 PATH_ROOT_DRIVE_DS = PATH_ROOT_DRIVE/'Datasets'
 PATH_IMAGES        = PATH_ROOT_LOCAL/'images'
 PATH_FOLDS         = PATH_ROOT_DRIVE/'Folds/Flare/'
-PATH_RES           = Path('./') #PATH_ROOT_DRIVE/'Results/Flare'
+PATH_RES           = PATH_PROJECT #Path('./') #PATH_ROOT_DRIVE/'Results/Flare'
 
 PATH_FLCATALOG = PATH_ROOT_DRIVE_DS/f'Events_Catalogs/flare_catalog_2023_04__1986_01.csv'
 PATH_CR_RATES  = PATH_ROOT_DRIVE_DS/'Meta/fl_climatology.pkl'
@@ -141,4 +144,6 @@ def initProject():
   for subFolder in ['Chunks','Allocation', 'FoldsTrainVal', 'OperationalTest']:
     if not (PATH_FOLDS/subFolder).exists():
       os.mkdir(PATH_FOLDS/subFolder)
+      
+  
     
