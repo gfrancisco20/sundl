@@ -4,7 +4,6 @@ Utilities and constants for Google Colab
 
 import os
 from pathlib import Path
-import tensorflow as tf
 import shutil
 import time
 
@@ -68,6 +67,7 @@ def ressourcesSetAndCheck(mixedPrec = False):
     else:
       print(gpu_info)
       print('List of GPUs running in Tensorflow :')
+      import tensorflow as tf
       print(tf.config.list_physical_devices('GPU'))
       if mixedPrec:
         # Mixed precision policy (only usefull if tpu or gpu with compute capability of at least 7.0)
