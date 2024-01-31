@@ -2,6 +2,7 @@
 Utilities to build independant CV folds in temporal/time-series context
 """
 
+import datetime
 import numpy as np
 import pandas as pd
 
@@ -10,19 +11,23 @@ from sundl.utils.flare.thresholds import mpfTresh
 
 __all__ = ['sampleFromFolds',
            'instantiateFolds',
+           'instantiateFoldsSequentially',
            'chunks2fold_balancedAllocation',
            'buildChunks'
            ]
 
-def buildChunks(fl_history,
-                clsTresholds,
+def buildChunks(samplesDates,
+                clsTresholds = None,
                 buffer = pd.DateOffset(days=27),
                 chunk_width = pd.DateOffset(days=81),
                 colIdCls = 'cls',
                 ):
-  df = fl_history
-  classes = clsTresholds.keys()
-  df=class_stats(df, classes = classes, colIdCls = colIdCls, verbose=1)
+  df = samplesDates
+  if clsTresholds is not None:
+    classes = clsTresholds.keys()
+    df=class_stats(df, classes = classes, colIdCls = colIdCls, verbose=1)
+  else:
+    classes = []
 
   chunks = None
   # chunks = pd.DataFrame(dict(**{'chunkId':[], 'start':[], 'end':[]},**{cls:[] for cls in classes}))
@@ -189,3 +194,53 @@ def sampleFromFolds(dfFolds,
     print(f'\nFOLD {k}: {len(dfFoldsBalanced[k])}')
     _=class_stats(dfFoldsBalanced[k], classes = classes, colIdCls = 'cls', verbose=verbose)
   return dfFoldsBalanced
+
+def instantiateFoldsSequentially(
+    chunks,
+    timeserie,
+    n_folds = 5,
+    testType  = 'folds', #param [ 'folds', 'temporal' ] {type:"string"}
+    testDate  = datetime.datetime(2019,1,1,0,0,0), # for temporal test split only
+    excludeDateRanges = None
+):
+  folds = {idx:None for idx in range(n_folds)}
+  if testType == 'temporal':
+    dfTest = timeserie[timeserie.index >= testDate + pd.DateOffset(days=27)]
+    timeserie = timeserie[timeserie.index < testDate]
+  if excludeDateRanges is not None:
+    for startExclude, endExclude in excludeDateRanges:
+      timeserie = timeserie[(timeserie.index <= startExclude) | (timeserie.index > endExclude)]
+      
+
+  # we build n_folds by filling them sequentially with available chunks
+  for chunkIdx in range(len(chunks)):
+    foldIdx = chunkIdx % n_folds
+    sampleIds = (timeserie.index >= chunks.loc[chunkIdx,'start']) & (timeserie.index < chunks.loc[chunkIdx,'end'])
+    if folds[foldIdx] is None:
+      folds[foldIdx] = timeserie[sampleIds]
+    else:
+      folds[foldIdx] = pd.concat([folds[foldIdx], timeserie[sampleIds]], axis = 0)
+
+  # we prepare the train,val,test folds combinations
+  readyFolds = []
+  for k in folds.keys():
+    dfVal = folds[k]
+    trainIdxs = list(folds.keys())
+    trainIdxs.remove(k)
+    if testType == 'folds':
+      dfTest = folds[(k+1) % n_folds]
+      trainIdxs.remove((k+1) % n_folds)
+    for i,trainIdx in enumerate(trainIdxs):
+      if i==0:
+        dfTrain = folds[trainIdx]
+      else:
+        dfTrain = pd.concat([dfTrain,folds[trainIdx]],axis=0)
+
+    if testType == 'folds':
+      readyFolds.append([dfTrain,dfVal,dfTest])
+    else:
+      readyFolds.append([dfTrain,dfVal])
+  if testType == 'folds':
+    return readyFolds
+  else:
+    return readyFolds, dfTest

@@ -52,11 +52,15 @@ def loadMinMaxDates(pathFolder,
   
   return minDate, maxDate
   
-def read_Dataframe_With_Dates(pathCsvDf, tsColumns = ['timestamp'], tsFmt = '%Y-%m-%d %H:%M:%S', colAsIndex = 'timestamp'):
+def read_Dataframe_With_Dates(pathCsvDf, tsColumns = ['timestamp'], tsFmt = '%Y-%m-%d %H:%M:%S', colAsIndex = 'timestamp', minDate = None, maxDate = None):
   df = pd.read_csv(pathCsvDf)
   for tsColumn in tsColumns:
     if tsColumn in df.columns:
       df[tsColumn] = df[tsColumn].apply(lambda x: datetime.datetime.strptime(x,tsFmt)) # '%Y/%m/%d/H%H00/
       if tsColumn == colAsIndex:
         df = df.set_index([tsColumn], drop = True)
+  if minDate is not None:
+    df = df[df.index >= minDate]
+  if maxDate is not None:
+    df = df[df.index <= maxDate]
   return df
