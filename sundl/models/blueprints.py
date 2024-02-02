@@ -16,7 +16,8 @@ def build_persistant_model(
     metrics= None,
     encoder = None,
     regression = True, # unused but needed  for fn prototype compatibility (of builDS from ModelInstantier class)
-
+    num_classes = 2,
+    compileModel = True,
     **kwargs
 ):
   class PersistantModel(tf.keras.Model):
@@ -34,13 +35,14 @@ def build_persistant_model(
       output = inputs
       if not regression:
         output = tf.cast(output, dtype='uint8')
-        output = tf.one_hot(output,2)
+        output = tf.one_hot(output,num_classes)
       # output = tf.cast(output, dtype='float32')
       # output = output >=1
       # output = tf.cast(output, dtype=inputs.dtype)
       return output
   model = PersistantModel()
-  model.compile(loss=loss, metrics=metrics)
+  if compileModel:
+    model.compile(loss=loss, metrics=metrics)
   return model
 
 def __build_pretrained_innerPatch(
@@ -116,6 +118,7 @@ def build_pretrained_PatchCNN(
     limb_patches = [(0,0),(0,3),(1,0),(1,3)] , # def val for 256 patches
     meth_patche_agg = 'avg', # choose in ['c1d_lin', 'c1d_relu', 'avg', 'c3d', 'max', 'sum'] * c3d only if patche_output_type=feature_map
     includeInterPatches = False, # include patches covering the vertical intersections of basic patches
+    compileModel = True,
     **kwargs
 ):
 
@@ -232,8 +235,9 @@ def build_pretrained_PatchCNN(
   # todo : add other optim handler if needed + add other optim params if needed
   # error : KeyError: 'The optimizer cannot recognize variable...
   # haapens in loops of CV
-  optimizer = reinstatiateOptim(optimizer)
-  model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+  if compileModel:
+    optimizer = reinstatiateOptim(optimizer)
+    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
   return model
 
 

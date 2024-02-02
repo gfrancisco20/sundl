@@ -197,12 +197,18 @@ def builDS_image_feature(
     
   if ts_off_scalar_hours is not None:
     for offScalar in ts_off_scalar_hours:
-      scalar_lag = - int(offScalar//24)
+      # WARNING : offScalar is expeccted negative or null
+      scalar_lag = -offScalar #- int(offScalar//24)
       dfTimeseries[f'scalar_{offScalar}'] = dfTimeseries[scalarCol].rolling(
-          window = f'{scalar_lag}D',
-          closed = 'right', # min_periods = int(scalar_lag)
-          ).apply(lambda x: x[0])[24*scalar_lag:] 
+          window = f'{scalar_lag}H',
+          closed = 'both', # min_periods = int(scalar_lag)
+          ).apply(lambda x: x[0])#[24*scalar_lag:] 
 
+  if ts_off_scalar_hours is not None:
+    startIdx = int(np.max(np.abs(ts_off_scalar_hours))/2)
+  else:
+    startIdx = 0
+  dfTimeseries = dfTimeseries[startIdx : -int(np.max(ts_off_label_hours)/2)]  
   dfTimeseries.dropna(subset=[f'label_{offLabel}' for offLabel in ts_off_label_hours])
       
   # fiiltering on sample dates
@@ -275,7 +281,7 @@ def builDS_image_feature(
   actualWeights = {}
   if weightByClass:
     if weightOffLabIdx is None:
-      labelWeightingCol = labels
+      labelWeightingCol = labels[:,0]
     else:
       labelWeightingCol = labels[:,weightOffLabIdx]
     print('labelCol', labelCol)
@@ -635,16 +641,6 @@ def buildDS_persistant(num_classes,
                 img_size = None # for compatibility only
                 ):
   if historyEncoder is None: historyEncoder = labelEncoder
-  def configure_for_performance(ds, batch_size, shuffle_buffer_size=1000, shuffle = False, cache=True, prefetch=True, epochs = None):
-    if cache:
-      ds = ds.cache()
-    if shuffle:
-      ds = ds.shuffle(buffer_size=shuffle_buffer_size)
-    ds = ds.batch(batch_size)
-    if prefetch:
-      ds = ds.prefetch(buffer_size=tf.data.AUTOTUNE)
-    return ds
-
   # offseting
   dfTimeseries.index = dfTimeseries.index.shift(periods = -ts_off_label_hours, freq='H')
   input_lag = - ts_off_history_hours
@@ -707,5 +703,130 @@ def buildDS_persistant(num_classes,
     ds = tf.data.Dataset.zip((flareHistoPreds_ds, labels_ds))
   shuffle_buffer_size = uncachedShuffBuff
   ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, epochs)
+  # dfTimeseries_updated = dfTimeseries[keeped]
+  return ds, [], [], []
+
+def buildDS_persistant_MTS(
+                dfTimeseries,
+                samples,
+                shiftSamplesByLabelOff = False,
+                ts_off_label_hours   = [24], # offset from sample date
+                ts_off_history_hours = [0], # offset from sample date
+                labelEncoder      = None,
+                labelCol          = 'mpf',
+                prefetch          = True,
+                cache             = True,
+                shuffle           = True,
+                uncachedShuffBuff = 1000,
+                regression        = False,
+                num_classes       = None, 
+                batch_size = 32,
+                weightByClass = False,
+                classTresholds = {'quiet': (0,1e-7), 'B':(1e-7,1e-6), 'C':(1e-6,1e-5), 'M':(1e-5,1e-4), 'X': (1e-4,np.inf)},
+                classWeights = {'quiet': 0.2, 'B':0.2, 'C':0.2, 'M':0.2, 'X': 0.2},
+                img_size = None, # for compatibility only
+                weightOffLabIdx = None
+                ):
+  dfTimeseries = dfTimeseries.copy()
+  samples = samples.copy()
+  if type(ts_off_label_hours) not in [np.ndarray,list]:
+    ts_off_label_hours = [ts_off_label_hours]
+  if type(ts_off_history_hours) not in [np.ndarray,list]:
+    ts_off_history_hours = [ts_off_history_hours]
+    
+  # offseting
+  for offLabel in ts_off_label_hours:
+    dfTimeseries[f'label_{offLabel}'] = dfTimeseries[labelCol].rolling(
+            window = f'{offLabel}H',
+            closed = 'right', # min_periods = int(scalar_lag)
+            ).apply(lambda x: x[-1]).shift(freq = f'-{offLabel}H')#[:-int(offLabel/2)] 
+    numna = dfTimeseries[f'label_{offLabel}'].isna().sum()
+    print(f'WARNING : {numna} NaN (droped) for label at ts {offLabel}')  
+  for offhistory in ts_off_history_hours:
+    history_lag = -offhistory
+    dfTimeseries[f'history_{offhistory}'] = dfTimeseries[labelCol].rolling(
+        window = f'{history_lag}H',
+        closed = 'both', # min_periods = int(history_lag)
+        ).apply(lambda x: x[0])#[24*history_lag:] 
+    numna = dfTimeseries[f'history_{offhistory}'].isna().sum()
+    print(f'WARNING : {numna} NaN (droped) for input at ts {offhistory}')  
+    
+  dfTimeseries = dfTimeseries[int(np.max(np.abs(ts_off_history_hours))/2) : -int(np.max(ts_off_label_hours)/2)]  
+  dfTimeseries.dropna(subset=[f'label_{offLabel}' for offLabel in ts_off_label_hours])
+  dfTimeseries.dropna(subset=[f'history_{offhistory}' for offhistory in ts_off_history_hours])
+      
+    
+  # offseting
+  # dfTimeseries.index = dfTimeseries.index.shift(periods = -ts_off_label_hours, freq='H')
+  # input_lag = - ts_off_history_hours
+  # dfTimeseries['history'] = dfTimeseries[labelCol].rolling(window = f'{input_lag}H',
+  #                                                  closed = 'right', # min_periods = int(input_lag)
+  #                                                  ).apply(
+  #                                                     lambda x: x[0]) # we remove first month in case of incomplete windows
+  # dfTimeseries = dfTimeseries[int(ts_off_label_hours/2):-int(ts_off_label_hours/2)]
+  # numna = dfTimeseries['history'].isna().sum()
+  # print(f'WARNING : {numna} NaN (droped)')
+  # dfTimeseries = dfTimeseries.dropna()
+
+  # filtering on sample dates
+  if samples is not None:
+    if shiftSamplesByLabelOff:
+      # because the balance of the sample was made on the actual window values, not their foreccast-labels
+      samples.index = samples.index + pd.DateOffset(hours= -ts_off_label_hours[0])
+    dfTimeseries = dfTimeseries[dfTimeseries.index.isin(samples.index)]
+    
+  
+
+  
+  # weighting
+  if weightByClass:
+    if weightOffLabIdx is None:
+      labelWeightingCol = dfTimeseries[f'label_{ts_off_label_hours[0]}']
+    else:
+      labelWeightingCol = dfTimeseries[f'label_{ts_off_label_hours[weightOffLabIdx]}']
+    classes = list(classTresholds.keys())
+    actualWeights = {}
+    weights = np.ones(len(labelWeightingCol))
+    print('labelCol',labelCol)
+    print('classTresholds',classTresholds)
+    for cls in classes:
+      print('CLASS', cls)
+      clsIdxs = (labelWeightingCol>=classTresholds[cls][0]) & (labelWeightingCol<classTresholds[cls][1])
+      print('len(labels)', len(labelWeightingCol))
+      print('len(labels[clsIdxs])', len(labelWeightingCol[clsIdxs]))
+      actualWeights[cls] = len(labelWeightingCol[clsIdxs]) / len(labelWeightingCol)
+      print('actualWeights[cls', actualWeights[cls])
+      weights[clsIdxs] = classWeights[cls] / actualWeights[cls]
+    weights_ds = tf.data.Dataset.from_tensor_slices(weights)
+    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    
+  # encoding
+  if labelEncoder is not None:
+    for offhistory in ts_off_history_hours:
+      dfTimeseries[f'history_{offhistory}'] = dfTimeseries[f'history_{offhistory}'].apply(lambda x: labelEncoder(x))
+    for offLabel in ts_off_label_hours:
+      dfTimeseries[f'label_{offLabel}'] = dfTimeseries[f'label_{offLabel}'].apply(lambda x: labelEncoder(x))
+      
+
+  # tensorflow ds
+  labels = dfTimeseries[[f'label_{offLabel}'  for offLabel in ts_off_label_hours]].values
+  inputs = dfTimeseries[[f'history_{offhistory}'  for offhistory in ts_off_history_hours]].values
+  labels_ds = tf.data.Dataset.from_tensor_slices(labels)
+  inputs_ds = tf.data.Dataset.from_tensor_slices(inputs)
+  if not regression:
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, tf.uint8))
+    labels_ds = labels_ds.map(lambda x: tf.one_hot(x,num_classes))
+    inputs_ds = inputs_ds.map(lambda x: tf.cast(x, tf.uint8))
+    inputs_ds = inputs_ds.map(lambda x: tf.one_hot(x,num_classes))
+  else:
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    inputs_ds = inputs_ds.map(lambda x: tf.cast(x, dtype='float32'))
+
+  if weightByClass:
+    ds = tf.data.Dataset.zip((inputs_ds, labels_ds, weights_ds))
+  else:
+    ds = tf.data.Dataset.zip((inputs_ds, labels_ds))
+  shuffle_buffer_size = uncachedShuffBuff
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch)
   # dfTimeseries_updated = dfTimeseries[keeped]
   return ds, [], [], []

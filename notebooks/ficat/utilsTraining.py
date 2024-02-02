@@ -77,7 +77,7 @@ class ModelInstantier2(ModelInstantier):
           else:
             tag += '_Ptrd'
     else:
-      tag += '_O'
+      tag += '_'
     if 'optimizers' in self.buildModelParams.keys():
       tag += f'_{self._optimTag()}'
     if self.extraNameTag is not None:
@@ -98,24 +98,31 @@ class ModelInstantier2(ModelInstantier):
     if 'ts_off_scalar_hours' in self.buildDsParams.keys():
       if self.buildDsParams['ts_off_scalar_hours'] is not None:
         ts_off_scalar_hours =  self.buildDsParams['ts_off_scalar_hours']
-        tag += '_S'
-        numTs = len(ts_off_scalar_hours)
-        maxTs = ts_off_scalar_hours[-1]
-        minTs = ts_off_scalar_hours[0]
-        if numTs == 0:
-          if minTs >= 24:
-            tag += f'x{int(minTs/24)}D'
-          else:
-            tag += f'x{minTs}H'
+        if 'scalarAgregation' in self.buildModelParams:
+          if self.buildModelParams['scalarAgregation'] == 'feature':
+            tag += '_ScFt'
+          elif self.buildModelParams['scalarAgregation'] == 'baseline':
+            tag += '_ScBs'
         else:
-          tag += f'x{minTs}Hx{int(maxTs/24)}Dx{numTs}'
+          tag += '_Sc'
+        # numTs = len(ts_off_scalar_hours)
+        # maxTs = ts_off_scalar_hours[-1]
+        # minTs = ts_off_scalar_hours[0]
+        # if numTs == 0:
+        #   if minTs >= 24:
+        #     tag += f'x{int(minTs/24)}D'
+        #   else:
+        #     tag += f'x{minTs}H'
+        # else:
+        #   tag += f'x{minTs}Hx{int(maxTs/24)}Dx{numTs}'
     return  tag
 
   def fullNameFunc(self, channels, h): 
     fullname = f'{self.name}_'
     fullname += self._parammetersTag() + '_'
-    fullname += reduce(lambda x,y: f'{x}x{y}',
-                       [f'{channel:0>4}' for channel in channels]) 
+    if channels is not None:
+      fullname += reduce(lambda x,y: f'{x}x{y}',
+                        [f'{channel:0>4}' for channel in channels]) 
     fullname += f'_{h}'
     
     return fullname
@@ -228,15 +235,22 @@ def trainConstantModel(dsTrain, dsVal, model, modelInstantiater, epochs, weightB
   return historyData 
 
 def printTrainingResults(historyData, cat = ['']):
-  for cat in ['']:
-    print('')
-    for m in historyData.keys():
-      if m[:2] != 'va':
-        print(f'Train {m}{cat} : ', historyData[f'{m}{cat}'])
-    print('')
-    for m in historyData.keys():
-      if m[:2] == 'va':
-        print(f'Val {m}{cat} : ', historyData[f'{m}{cat}'])
+  results = historyData.copy()
+  def fmtValue(value):
+    if value >= 1000:
+      fmt = f'{value:.2e}'
+    else:
+      fmt = f'{value:.2f}'
+    return fmt
+  for m in results.keys():
+    results[f'{m}'] = [fmtValue(value) for value in results[f'{m}']]
+  for m in results.keys():
+    if m[:2] != 'va':
+      print(f'Train  {m}: ',results[f'{m}'])
+  print('')
+  for m in results.keys():
+    if m[:2] == 'va':
+      print(f'Val {m}: ', results[f'{m}'])
       
 
 def saveTrainingResults(resDir, res, best, bestCVCrossEpoch, full_name_comb, cv_K):
@@ -268,7 +282,8 @@ def saveTrainingResults(resDir, res, best, bestCVCrossEpoch, full_name_comb, cv_
         bestCVCrossEpoch = pd.DataFrame(tmp,index=[0])
     else:
         if bestCVCrossEpoch is None: bestCVCrossEpoch = pd.read_csv(resDir+f'/bestsCVCrossEpoch.csv')
-        bestCVCrossEpoch = bestCVCrossEpoch.append(tmp, ignore_index=True)
+        # bestCVCrossEpoch = bestCVCrossEpoch.append(tmp, ignore_index=True)
+        bestCVCrossEpoch = pd.concat([bestCVCrossEpoch,pd.DataFrame(tmp,index = range(len(bestCVCrossEpoch),len(tmp)))],axis=0,ignore_index=True)
     bestCVCrossEpoch.to_csv(resDir+f'/bestsCVCrossEpoch.csv',index=False)
     res[full_name_comb] = [dfRes] # --> dropping individual kfold resutls
   #===================================================
@@ -297,7 +312,10 @@ def saveTrainingResults(resDir, res, best, bestCVCrossEpoch, full_name_comb, cv_
     best = pd.DataFrame(tmp, index=[0])
   else:
     if best is None: best = pd.read_csv(resDir+f'/bests.csv')
-    best = best.append(tmp, ignore_index=True)
+    # best = best.append(tmp, ignore_index=True)
+    best = pd.concat([best,pd.DataFrame(tmp,index = range(len(best),len(tmp)))],axis=0,ignore_index=True)
   best.to_csv(resDir+f'/bests.csv',index=False)
+  
+  
   res[full_name_comb].to_csv(resDir+f'/training_{full_name_comb}.csv',index=True)
   return res, best, bestCVCrossEpoch
