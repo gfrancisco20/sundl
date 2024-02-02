@@ -78,7 +78,330 @@ def parse_image_normalize_tfMode(file_path, gray2RGB, means, stds):
       res = tf.repeat(res,repeats=3,axis=-1)
   return res
 
-def builDS_image_feature(pathDir,
+def builDS_image_feature(
+  pathDir,
+  channels,
+  batch_size,
+  dfTimeseries,
+  samples, # sample dates
+  shiftSampByLabOff = False,
+  shiftTsByLabOff   = True, # DEP
+  ts_off_label_hours= 24*np.arange(0.5,6.5,0.5),
+  ts_off_scalar_hours= None, 
+  labelCol          = 'sw_v',
+  scalarCol         = None,
+  prefetch          = True,
+  cache             = True,
+  shuffle           = True,
+  uncachedShuffBuff = 1000,
+  img_size          = None,
+  crop_coord        = None,
+  num_classes       = 2,
+  gray2RGB          = True,
+  chnWiseNormalize  = False,
+  pathNormFile      = None,
+  shape3d           = False,
+  regression        = False,
+  labelEncoder      = None,
+  scalarEncoder     = None,
+  weightByClass     = False,
+  weightOffLabIdx   = 0,
+  # needed only if weightByClass is True, class are defined relatively to labelCol
+  classTresholds    = {'quiet': (0,1e-7), 
+                       'B':(1e-7,1e-6), 
+                       'C':(1e-6,1e-5), 
+                       'M':(1e-5,1e-4), 
+                       'X':(1e-4,np.inf)},
+  classWeights      = {'quiet': 0.20, 
+                       'B':0.20, 
+                       'C':0.20, 
+                       'M':0.20, 
+                       'X':0.20},
+  strictly_pos_label = True,
+**kwargs # bacckward compt
+):
+  dfTimeseries = dfTimeseries.copy()
+  samples = samples.copy()
+  if scalarCol is None:
+    scalarCol = labelCol
+  if type(ts_off_label_hours) not in [np.ndarray,list]:
+    ts_off_label_hours = [ts_off_label_hours]
+  if ts_off_scalar_hours is not None:
+    if type(ts_off_scalar_hours) not in [np.ndarray,list]:
+      ts_off_scalar_hours = [ts_off_scalar_hours]
+  '''
+  Generate a tensorflow dataset of images and features
+  Parameters
+  ----------
+  channels : `list` of `string` or `int`
+    images channel ID to read and assemble from directory 'pathDir'
+    
+  dfTimeseries : DataFrame
+    continuous timeseries containing labels and eventual features,
+    features can be added in this dataset only from dfTimeseries
+    
+  samples : DataFrame
+    DataFrame where the index contain the date of the samples to be used in the dataset
+    
+  shiftTsByLabOff : bool, optional
+    shift the 'dfTimeseries' dates of 'ts_off_label_hours' hours, 
+    needed if dfTimeseries is given at feature levels, 
+    i.e. values at date D gives feature of timestep 0 for date D and not labels,
+    in the case of flare forecasting the features of timestep 0 
+    characterize the time-window [D-windowSize ; D[,
+    while the labels values refer to [D ; D + windowSize[,
+    default to true
+    
+  shiftSampByLabOff : bool, optional
+    shift the 'sample' dates of 'ts_off_label_hours' hours, 
+    needed if the sample dates where computed at feature level rather than featur,
+    default to true
+
+  gray2RGB : `bool`, optional
+    only for one channel images (i.e. len(channel)==len(timesteps)==1)
+    convert the resulting 1 channel image into a 3 channel one by repeating it
+    usefull to use premade NN on 1 channel images
+
+  Returns
+  -------
+  `tf.data.Dataset`
+    a tensorflow dataset where an image is of the shape : [img_size,img_size,len(channels)+len(timesteps)]
+    the channels or organized as follow :
+    channel_1
+    ...
+    channel_n 
+  '''
+  # 
+  if len(channels)>2: 
+    gray2RGB=False
+  if isinstance(pathDir,pathlib.PosixPath): 
+    pathDir = pathDir.as_posix()
+
+
+  
+  if samples is not None:
+    if shiftSampByLabOff:
+      print('Samples shiiftng done')
+      # use when the balance of the sample is made on the actual window values, not their foreccast-labels
+      samples.index = samples.index + pd.DateOffset(hours= -ts_off_label_hours[0])
+
+  # offseting
+  # if shiftTsByLabOff:
+  for offLabel in ts_off_label_hours:
+    dfTimeseries[f'label_{offLabel}'] = dfTimeseries[labelCol].rolling(
+            window = f'{offLabel}H',
+            closed = 'right', # min_periods = int(scalar_lag)
+            ).apply(lambda x: x[-1]).shift(freq = f'-{offLabel}H')#[:-int(offLabel/2)] 
+    numna = dfTimeseries[f'label_{offLabel}'].isna().sum()
+    print(f'WARNING : {numna} NaN (droped) for label at ts {offLabel}')
+    
+  if ts_off_scalar_hours is not None:
+    for offScalar in ts_off_scalar_hours:
+      scalar_lag = - int(offScalar//24)
+      dfTimeseries[f'scalar_{offScalar}'] = dfTimeseries[scalarCol].rolling(
+          window = f'{scalar_lag}D',
+          closed = 'right', # min_periods = int(scalar_lag)
+          ).apply(lambda x: x[0])[24*scalar_lag:] 
+
+  dfTimeseries.dropna(subset=[f'label_{offLabel}' for offLabel in ts_off_label_hours])
+      
+  # fiiltering on sample dates
+  dfTimeseries = dfTimeseries[dfTimeseries.index.isin(samples.index)]
+
+  if not cache and shuffle:
+    # necessary shuffle sumplement with small buffer
+    dfTimeseries = dfTimeseries.sample(frac=1)
+    shuffle_buffer_size = len(dfTimeseries)
+  else:
+    shuffle_buffer_size = uncachedShuffBuff
+
+  dfTimeseries = dfTimeseries.reset_index()
+  dfTimeseries['id'] = dfTimeseries['timestamp'].apply(lambda x: x.strftime('%Y%m%d_%H%M'))
+  dfTimeseries['pth'] = dfTimeseries['timestamp'].apply(lambda x: x.strftime('%Y/%m/%d'))
+  dfTimeseries = dfTimeseries.set_index('timestamp')
+  fullPthIds = dfTimeseries[['pth','id']].apply(lambda x: x['pth']+'/'+x['id'],axis=1)
+  fileIds_ds = tf.data.Dataset.from_tensor_slices(list(fullPthIds))
+  AUTOTUNE = tf.data.experimental.AUTOTUNE
+  filenamepatterns_ds = fileIds_ds.map(lambda x: fileId2FnPattern(x,pathDir,channels), num_parallel_calls=AUTOTUNE)
+  ########################################################################
+  filenames = []
+  labels = []
+  scalars = []
+  missing_file_idx = []
+  missing_file_regexp = []
+  keeped = np.ones(len(dfTimeseries), dtype=bool)
+  # dfTimeseries = dfTimeseries.set_index('id')
+  dfTimeseries = dfTimeseries.reset_index()  
+  for idx,pattern in enumerate(filenamepatterns_ds):
+    # image path retrieval
+    try:
+      #print(channels, timesteps)
+      # print(pattern.numpy())
+      files = [sorted(glob(pattern.numpy()[chanIdx]))[0] \
+                for chanIdx in range(len(channels))]
+      files = [f.decode("utf-8")  for f in files]
+      if len(files)==0:
+        raise(f'Missing File {pattern.numpy()}')
+      filenames.append(files)
+
+      label = dfTimeseries.loc[idx,[f'label_{offLabel}'  for offLabel in ts_off_label_hours]].values
+      labels.append(label)
+      if ts_off_scalar_hours is not None:
+        scalar = dfTimeseries.loc[idx,[f'scalar_{offScalar}'  for offScalar in ts_off_scalar_hours]].values
+        scalars.append(scalar)
+      # if stricly_pos_raw_labels:
+      #   if label < 0:
+      #     label = 10*tf.keras.backend.epsilon()
+      
+    except Exception as e:
+      #print(e)
+      keeped[idx] = False
+      missing_file_idx.append(idx)
+      missing_file_regexp.append(pattern.numpy()[0])
+  labels = np.array(labels)
+  labels = labels.astype('float32')
+  if ts_off_scalar_hours is not None:
+    scalars = np.array(scalars)
+    scalars = scalars.astype('float32')
+  if strictly_pos_label:
+    labels[labels<=0] = 0e-15
+  
+  print('------------------------------')
+  print('labels.shape', labels.shape)
+  print('------------------------------')
+  
+  # weighting -- NOT USED FOR FICAT
+  # if weightByClass:
+  actualWeights = {}
+  if weightByClass:
+    if weightOffLabIdx is None:
+      labelWeightingCol = labels
+    else:
+      labelWeightingCol = labels[:,weightOffLabIdx]
+    print('labelCol', labelCol)
+    print('classTresholds', classTresholds)
+    weights = np.ones(len(labelWeightingCol))
+    classes = list(classTresholds.keys())
+    for cls in classes:
+      print('CLASS', cls)
+      clsIdxs = (labelWeightingCol>=classTresholds[cls][0]) & (labelWeightingCol<classTresholds[cls][1])
+      print('len(labels)', len(labelWeightingCol))
+      print('len(labels[clsIdxs])', len(labelWeightingCol[clsIdxs]))
+      actualWeights[cls] = len(labelWeightingCol[clsIdxs]) / len(labelWeightingCol)
+      print('actualWeights[cls', actualWeights[cls])
+      weights[clsIdxs] = classWeights[cls] / actualWeights[cls]
+    weights_ds = tf.data.Dataset.from_tensor_slices(weights)
+    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    
+  # encoding
+  if labelEncoder is not None:
+    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = 'float32')# labels.map(lambda x: labelEncoder(x))
+  if scalarEncoder is not None and ts_off_scalar_hours is not None:
+    scalars = np.fromiter((scalarEncoder(x) for x in scalars), dtype = 'float32')
+    
+  # tensorflow ds 
+  # print(labels.shape)
+  labels_ds = tf.data.Dataset.from_tensor_slices(labels)
+  if ts_off_scalar_hours is not None:
+    scalars_ds = tf.data.Dataset.from_tensor_slices(scalars)
+    scalars_ds = scalars_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    
+  if regression:
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype='float32'))
+  else:
+    # TODO : make mutlilabel generic
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, tf.uint8))
+    labels_ds = labels_ds.map(lambda x: tf.one_hot(x,num_classes))
+    
+  #######################################################################
+  filenames_ds = tf.data.Dataset.from_tensor_slices(filenames)
+  
+  im = np.array(Image.open(filenames[0][0]))
+  isGray = True if len(im.shape)==2 else False
+  
+  if chnWiseNormalize:
+    # rmv?
+    duration = time.time()
+    filenames_ds = tf.data.Dataset.from_tensor_slices(filenames)
+    pixstat = pd.read_csv(pathNormFile).set_index('channel')
+    tfMeans = tf.constant([pixstat.loc[str(channel)]['mean_wg'] for channel in channels], dtype='float32')
+    tfStd = tf.constant([pixstat.loc[str(channel)]['std_wg'] for channel in channels], dtype='float32')
+    @tf.autograph.experimental.do_not_convert
+    def tf_normaliser(x):
+      return parse_image_normalize_tfMode(x, gray2RGB, tfMeans, tfStd)
+    images_ds = filenames_ds.map(tf_normaliser, num_parallel_calls=AUTOTUNE)
+    duration = time.time() - duration
+    print(f'Normalisation took {duration//60:0>2.0f}m{duration%60:0>2.0f}s during dataset instantiation')
+  else:
+    images_ds = filenames_ds.map(lambda x: parse_image(x,pathDir,gray2RGB, isGray), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
+  
+  if shape3d:
+    images_ds = images_ds.map(lambda x: tf.expand_dims(tf.transpose(x,[2,0,1]), axis=-1),num_parallel_calls=AUTOTUNE) # if no prior batching
+  
+  imHeight = im.shape[0]
+  imWidth = im.shape[1]
+  if img_size is not None:
+    print('img_size', img_size)
+    print('im.shape', im.shape)
+    if crop_coord is not None:
+      left, top, right, bottom = crop_coord
+      imHeight = top - bottom
+      imWidth = right - left
+      images_ds = images_ds.map(lambda x: tf.image.crop_to_bounding_box(x,
+                                                                        offset_height = top, 
+                                                                        offset_width = left, 
+                                                                        target_height = imHeight, 
+                                                                        target_width = imWidth
+                                                                        ) ,num_parallel_calls=AUTOTUNE)
+    if imHeight != img_size[0] or imWidth != img_size[1]:
+      if imHeight == imWidth and img_size[0] != img_size[1] and crop_coord is None:
+        # default cropping for flare pole
+        if img_size[1] > img_size[0]: #  width > height
+          top = (img_size[1] + img_size[0]) / 2
+          left = img_size[1]
+        else:
+          top = img_size[0]
+          left = (img_size[1] + img_size[0]) / 2
+        images_ds = images_ds.map(lambda x: tf.image.crop_to_bounding_box(x,
+                                                                        offset_height = top, 
+                                                                        offset_width = left, 
+                                                                        target_height =  img_size[0], 
+                                                                        target_width = img_size[1]
+                                                                        ) ,num_parallel_calls=AUTOTUNE)
+      images_ds = images_ds.map(lambda x: tf.image.resize(x,
+                                                          size = (img_size[0], img_size[1]),
+                                                          method=tf.image.ResizeMethod.BICUBIC, #BILINEAR,
+                                                          preserve_aspect_ratio=True
+                                                          ) ,num_parallel_calls=AUTOTUNE)
+    #images_ds = images_ds.map(lambda x: tf.expand_dims(tf.transpose(x,[0,3,1,2]), axis=-1),num_parallel_calls=AUTOTUNE)
+  if ts_off_scalar_hours is not None:
+    if weightByClass:
+      ds = tf.data.Dataset.zip((scalars_ds, images_ds, labels_ds, weights_ds))
+      def structure_ds(a,b,c,d):
+        return {
+            'scalars': a,
+            'image': b, 
+        }, c, d
+      ds = ds.map(structure_ds)
+    else:
+      ds = tf.data.Dataset.zip((scalars_ds, images_ds, labels_ds))
+      def structure_ds(a,b,c):
+        return {
+            'scalars': a,
+            'image': b, 
+        }, c
+      ds = ds.map(structure_ds)
+  else:
+    if weightByClass:
+      ds = tf.data.Dataset.zip((images_ds, labels_ds, weights_ds))
+    else:
+      ds = tf.data.Dataset.zip((images_ds, labels_ds))
+
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch)
+  dfTimeseries_updated = dfTimeseries[keeped]
+  return ds, missing_file_idx, missing_file_regexp, dfTimeseries_updated
+
+def builDS_image(pathDir,
   channels,
   batch_size,
   dfTimeseries,

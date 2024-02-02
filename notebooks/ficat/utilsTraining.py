@@ -25,10 +25,11 @@ class ModelInstantier2(ModelInstantier):
     buildDsFunction,
     buildDsParams,
     name,
+    archiTag,
+    featureTag,
     # fullNameFunc=None,
     savedPredictionModel = False,
     cls = None,
-    weightStrategy = None,
     foldTag = '',
     extraNameTag = None
     ):
@@ -41,9 +42,10 @@ class ModelInstantier2(ModelInstantier):
                      savedPredictionModel = savedPredictionModel,
                      cls = cls
                      )
-    self.weightStrategy = weightStrategy
     self.foldTag = foldTag
     self.extraNameTag = extraNameTag
+    self.archiTag = archiTag
+    self.featureTag = featureTag
     
   def _optimTag(self):
     optConf = self.buildModelParams['optimizer']
@@ -62,18 +64,8 @@ class ModelInstantier2(ModelInstantier):
     return optimTag
     
   def _parammetersTag(self):
-    tag = ''
-    if 'patches_size' in self.buildModelParams.keys():
-      tag += '_PT'
-      imSize = self.buildModelParams['img_size']
-      ptSize = self.buildModelParams['patches_size']
-      num_patches = int(imSize[0]*imSize[1] / (ptSize[0]*ptSize[1]))
-      tag += f'x{num_patches}'
-      if 'includeInterPatches' in self.buildModelParams.keys():
-        if self.buildModelParams['includeInterPatches']:
-          tag += f'xIntrPtc'
-    else:
-      tag += '_FD'
+    tag = self.archiTag
+    tag += '_' + self.featureTag
     if 'pretainedWeight' in self.buildModelParams.keys():
       if  self.buildModelParams['pretainedWeight'] is False:
         tag += '_FlTr'
@@ -86,24 +78,46 @@ class ModelInstantier2(ModelInstantier):
             tag += '_Ptrd'
     else:
       tag += '_O'
-    if self.weightStrategy is not None:
-      tag += f'_{self.weightStrategy}'
-    else:
-      tag += '_NoWght'
-    if self.foldTag != '':
-      tag += f'x{self.foldTag}'
     if 'optimizers' in self.buildModelParams.keys():
       tag += f'_{self._optimTag()}'
     if self.extraNameTag is not None:
       tag += f'_{self.extraNameTag}'
+    if 'ts_off_label_hours' in self.buildDsParams.keys():
+      ts_off_label_hours =  self.buildDsParams['ts_off_label_hours']
+      tag += '_L'
+      numTs = len(ts_off_label_hours)
+      maxTs = ts_off_label_hours[-1]
+      minTs = ts_off_label_hours[0]
+      if numTs == 0:
+        if minTs >= 24:
+          tag += f'x{int(minTs/24)}D'
+        else:
+          tag += f'x{minTs}H'
+      else:
+        tag += f'x{minTs}Hx{int(maxTs/24)}Dx{numTs}'
+    if 'ts_off_scalar_hours' in self.buildDsParams.keys():
+      if self.buildDsParams['ts_off_scalar_hours'] is not None:
+        ts_off_scalar_hours =  self.buildDsParams['ts_off_scalar_hours']
+        tag += '_S'
+        numTs = len(ts_off_scalar_hours)
+        maxTs = ts_off_scalar_hours[-1]
+        minTs = ts_off_scalar_hours[0]
+        if numTs == 0:
+          if minTs >= 24:
+            tag += f'x{int(minTs/24)}D'
+          else:
+            tag += f'x{minTs}H'
+        else:
+          tag += f'x{minTs}Hx{int(maxTs/24)}Dx{numTs}'
     return  tag
 
   def fullNameFunc(self, channels, h): 
     fullname = f'{self.name}_'
+    fullname += self._parammetersTag() + '_'
     fullname += reduce(lambda x,y: f'{x}x{y}',
                        [f'{channel:0>4}' for channel in channels]) 
     fullname += f'_{h}'
-    fullname += '_' + self._parammetersTag()
+    
     return fullname
 
 def setUpResultFolder(models, 
@@ -115,7 +129,8 @@ def setUpResultFolder(models,
                       cv_K = None,
                       epochs = None,
                       batchSize = None,
-                      saveModel = False
+                      saveModel = False,
+                      windows_avg_h = None
                       ):
   if continuingFolder is None:
     #creating a new result folder
@@ -146,11 +161,11 @@ def setUpResultFolder(models,
         mtcDict[m.name] = m
       with open(resDir + '/models/metrics.pkl', 'wb') as f1:
         pickle.dump(mtcDict, f1)
-    testPredDir =  F_PATH_PREDS(resDir)
+    testPredDir =  F_PATH_PREDS(Path(resDir))
     os.mkdir(testPredDir)
       
     # Creating log file
-    full_name_combs  = [model.fullNameFunc(channels,h) for model, channels, h in models]
+    full_name_combs  = [model.fullNameFunc(channels,windows_avg_h) for model, channels in models]
     log = pd.DataFrame({'model':full_name_combs, 'status': np.zeros(len(full_name_combs),dtype=int), 'duration':  np.zeros(len(full_name_combs),dtype=str)})
     log = log.set_index('model')
     log.to_csv(resDir + '/log.csv')
@@ -174,38 +189,6 @@ def setUpResultFolder(models,
     log.to_csv(resDir + '/log.csv')
   return log, resDir, modelDir, mtcDict
     
-
-def conditionalHyperParameters(modelInstantiater, h, save_thdS, weightCollection):
-  binCls = modelInstantiater.cls
-  save_thd = save_thdS[binCls]
-  labelCol = modelInstantiater.buildDsParams['labelCol']
-  print('\nlabelCol : ', labelCol)
-  print('window_h : ', h)
-  if modelInstantiater.weightStrategy is not None:
-    classWeights = weightCollection[modelInstantiater.weightStrategy]
-  else:
-    classWeights = None
-  if labelCol == 'mpf':
-    classTresholds = mpfTresh
-  elif labelCol == 'toteh':
-    classTresholds = totehTresh[h]
-  encoder = lambda flux : float(flux >= classTresholds[binCls][0])
-  return save_thd, labelCol, binCls, classWeights, classTresholds, encoder
-
-def cvInit(full_name_comb, df_train, df_val, save_model, modelDir, frac_sample, cv_K, kf, sampVal = False):
-  dfSamples_train = df_train.copy()
-  dfSamples_val = df_val.copy()
-  if frac_sample is not None:
-    dfSamples_train = dfSamples_train.sample(frac = frac_sample, random_state=49)
-    if sampVal:
-      dfSamples_val = dfSamples_val.sample(frac = frac_sample, random_state=49)
-  print(f'#TRAIN : {len(dfSamples_train)}')
-  print(f'#VAL   : {len(dfSamples_val)}')
-  if save_model:
-    modelDirSub = modelDir + f'/{full_name_comb}'
-    if cv_K is not None:
-      modelDirSub = modelDirSub + f'_fd{kf:0>3d}'
-  
   
 def trainConstantModel(dsTrain, dsVal, model, modelInstantiater, epochs, weightByClass, save_model, modelDirSub):
   """
@@ -248,13 +231,14 @@ def printTrainingResults(historyData, cat = ['']):
   for cat in ['']:
     print('')
     for m in historyData.keys():
-      print(f'Train {m}{cat} : ', historyData[f'{m}{cat}'])
+      if m[:2] != 'va':
+        print(f'Train {m}{cat} : ', historyData[f'{m}{cat}'])
     print('')
     for m in historyData.keys():
-      print(f'Val   {m}{cat} : ', historyData[f'val_{m}{cat}'])
+      if m[:2] == 'va':
+        print(f'Val {m}{cat} : ', historyData[f'{m}{cat}'])
       
 
-    
 def saveTrainingResults(resDir, res, best, bestCVCrossEpoch, full_name_comb, cv_K):
   metrics = res[full_name_comb][0].columns
   #===================================================

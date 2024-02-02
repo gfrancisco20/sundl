@@ -131,6 +131,11 @@ class ModelInstantier():
     return self.buildDsFunction(**self.buildDsParams)
   
   def saveConfig(self, pathConfig):
+    for modelParam in self.config['model']:
+      if modelParam == 'tfModel':
+        self.config['model']['tfModel'] = self.config['model']['tfModel'].__name__
+      if isinstance(self.config['model'][modelParam], tf.keras.layers.Layer):
+        self.config['model'][modelParam] = self.config['model'][modelParam].name
     with open(pathConfig, 'wb') as f1:
       pickle.dump(self.config, f1)
   

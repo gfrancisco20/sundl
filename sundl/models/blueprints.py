@@ -236,6 +236,9 @@ def build_pretrained_PatchCNN(
   model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
   return model
 
+
+
+
 def build_pretrained_model(
     num_classes = None,
     img_size = (448, 448, 3),
@@ -249,23 +252,27 @@ def build_pretrained_model(
     unfreeze_top_N = None,
     modelName = 'PretrainedModel',
     feature_reduction = None,
+    lastTfConv = 'top_conv',
     alpha = 0.5,
     globalPooling = True,
-    hasScalars = False,
-    numScalars = 1,
+    scalarFeaturesSize = None,
+    scalarAgregation = 'feature', # @['feature', 'baseline']
+    compileModel = True,
+    labelSize = None, # for regression oonly, for classification use num_classes
     **kwargs
 ):
 
-  if hasScalars:
+  if scalarFeaturesSize is not None:
     image = tf.keras.layers.Input(shape=(img_size[0], img_size[1], img_size[2]), name='image')
-    scalar_input =  tf.keras.layers.Input(shape=(numScalars), name='input')
+    scalar_input =  tf.keras.layers.Input(shape=(scalarFeaturesSize), name='scalars')
   else:
-    image = tf.keras.layers.Input(shape=(img_size[0], img_size[1], img_size[2]), name='input')
+    image = tf.keras.layers.Input(shape=(img_size[0], img_size[1], img_size[2]), name='image')
 
   if pretainedWeight:
     model = tfModel(include_top=False, input_tensor=image, weights="imagenet",**kwargs)
   else:
     model = tfModel(include_top=False, input_tensor=image, weights=None,**kwargs)
+    
   # Freeze the pretrained weights
   model.trainable = not pretainedWeight
   if pretainedWeight and unfreeze_top_N is not None:
@@ -278,34 +285,65 @@ def build_pretrained_model(
           if not isinstance(layer, tf.keras.layers.BatchNormalization):
               layer.trainable = True
 
-  x = model.output
-
   if feature_reduction is not None:
-    x = feature_reduction(x)
+    for layer in model.layers:
+      if layer.name == lastTfConv:
+        preConvInput = layer.input
+    # print(feature_reduction)
+    if type(feature_reduction) == int:
+      top_conv = tf.keras.layers.Conv2D(name = 'top_conv',
+                                  filters = feature_reduction,
+                                  kernel_size = (3,3),
+                                  # strides = [1,1],
+                                  # padding = [1,1],
+                                  activation = None
+                                  )(preConvInput)
+    else:
+      top_conv = feature_reduction(preConvInput)
+    top_conv = tf.keras.layers.BatchNormalization(name =  f'top_bn')(top_conv)
+    top_conv = tf.keras.layers.Activation(activation='relu', name =  f'top_activation')(top_conv)
+    model = tf.keras.models.Model(
+     model.input ,
+     top_conv
+    )
+    x = model.output
+
+
+  # if feature_reduction is not None:
+  #   x = feature_reduction(x)
 
   # Output layers
   if globalPooling:
     x = tf.keras.layers.GlobalAveragePooling2D(name="avg_pool_vectorisation")(x)
+    x = tf.keras.layers.BatchNormalization()(x)
   else:
     x = tf.keras.layers.Flatten(name=f'flatten')(x)
-  if hasScalars:
-    x = tf.keras.layers.Concatenate(axis=1)([x,scalar_input])
-  x = tf.keras.layers.BatchNormalization()(x)
+  if scalarFeaturesSize is not None and scalarAgregation == 'feature':
+    x = tf.keras.layers.Concatenate(axis=1)([x,tf.keras.layers.BatchNormalization()(scalar_input)])
+  # x = tf.keras.layers.BatchNormalization()(x)
   top_dropout_rate = 0.2
   x = tf.keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
   if regression:
+    if labelSize is None:
+      labelSize = 1
     if scaledRegression:
       # Case where regression labels are scaled in [0,1] for potentially more stability)
-      output = tf.keras.layers.Dense(1, activation="sigmoid", name="pred")(x)
+      output = tf.keras.layers.Dense(labelSize, activation="sigmoid", name="pred")(x)
     else:
-      output = tf.keras.layers.Dense(1, name="pred", )(x)
+      output = tf.keras.layers.Dense(labelSize, name="pred", )(x)
+      # TODO : add baseeline case to otheer otpt kinds
+      if scalarFeaturesSize is not None and scalarAgregation == 'baseline':
+        output = tf.keras.layers.Add()([output, scalar_input])
   else:
     output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred")(x)
+  
+    
   # Compile
-  if hasScalars:
+  if scalarFeaturesSize is not None:
     model = tf.keras.Model((image,scalar_input), output, name=modelName)
   else:
     model = tf.keras.Model(image, output, name=modelName)
-  optimizer = reinstatiateOptim(optimizer)
-  model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+  if compileModel:
+    optimizer = reinstatiateOptim(optimizer)
+    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
   return model

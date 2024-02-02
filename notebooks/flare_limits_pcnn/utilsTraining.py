@@ -117,6 +117,8 @@ def setUpResultFolder(models,
                       batchSize = None,
                       saveModel = False
                       ):
+  if pathRes != str:
+    pathRes = pathRes.as_posix()
   if continuingFolder is None:
     #creating a new result folder
     
@@ -130,7 +132,7 @@ def setUpResultFolder(models,
     epochsTag = f'x{epochs:0>3}' if epochs is not None else ''
     batchTag = f'x{batchSize:0>3}' if batchSize is not None else ''
    
-    basedir = pathRes.as_posix() + f'/{folderTag}_{imgSize_tag}{epochsTag}{batchTag}{cvTag}_' + datetime.datetime.now().strftime('%Y_%m_%d__')
+    basedir = pathRes + f'/{folderTag}_{imgSize_tag}{epochsTag}{batchTag}{cvTag}_' + datetime.datetime.now().strftime('%Y_%m_%d__')
     listTrainDir = glob(basedir+'*')
     resDir = basedir + str(len(listTrainDir))
     os.mkdir(resDir)
@@ -146,7 +148,7 @@ def setUpResultFolder(models,
         mtcDict[m.name] = m
       with open(resDir + '/models/metrics.pkl', 'wb') as f1:
         pickle.dump(mtcDict, f1)
-    testPredDir =  F_PATH_PREDS(resDir)
+    testPredDir =  F_PATH_PREDS(Path(resDir))
     os.mkdir(testPredDir)
       
     # Creating log file
@@ -157,7 +159,7 @@ def setUpResultFolder(models,
 
   else:
     # Continuig an existing folder
-    resDir = pathRes.as_posix() + f'/{continuingFolder}'
+    resDir = pathRes + f'/{continuingFolder}'
     modelDir = resDir + '/models'
     if saveModel:
       # with open(resDir + '/models/metrics.pkl', 'rb') as f1:
@@ -248,12 +250,12 @@ def printTrainingResults(historyData, cat = ['']):
   for cat in ['']:
     print('')
     for m in historyData.keys():
-      print(f'Train {m}{cat} : ', historyData[f'{m}{cat}'])
+      if m[:2] != 'va':
+        print(f'Train {m}{cat} : ', historyData[f'{m}{cat}'])
     print('')
     for m in historyData.keys():
-      print(f'Val   {m}{cat} : ', historyData[f'val_{m}{cat}'])
-      
-
+      if m[:2] == 'va':
+        print(f'Val   {m}{cat} : ', historyData[f'{m}{cat}'])
     
 def saveTrainingResults(resDir, res, best, bestCVCrossEpoch, full_name_comb, cv_K):
   metrics = res[full_name_comb][0].columns

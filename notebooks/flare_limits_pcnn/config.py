@@ -83,6 +83,7 @@ PATH_SUNDL = '../../'
 PATH_PROJECT = f'{PATH_SUNDL}/notebooks/flare_limits_pcnn'
 sys.path.append(PATH_SUNDL)
 sys.path.append(PATH_PROJECT)
+PATH_PROJECT = Path(PATH_PROJECT)
 
    
 COLAB = False

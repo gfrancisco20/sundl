@@ -81,6 +81,7 @@ PATH_SUNDL = '../../'
 PATH_PROJECT = f'{PATH_SUNDL}/notebooks/sw'
 sys.path.append(PATH_SUNDL)
 sys.path.append(PATH_PROJECT)
+PATH_PROJECT = Path(PATH_PROJECT)
 
    
 COLAB = False
@@ -101,7 +102,8 @@ PATH_ROOT_DRIVE_DS = PATH_ROOT_DRIVE/'Datasets'
 PATH_IMAGES        = PATH_ROOT_LOCAL/'images'
 PATH_TIME_SERIES   = PATH_ROOT_DRIVE_DS/'Time_Series'
 PATH_FOLDS         = PATH_ROOT_DRIVE/'Folds/Ficat/'
-PATH_RES           = PATH_PROJECT #Path('./') #PATH_ROOT_DRIVE/'Results/Flare'
+PATH_RES           = PATH_PROJECT #Path('./')
+PATH_RES           = PATH_ROOT_DRIVE/'Results/Ficazione'
 
 F_PATH_SW_TS = lambda window_h : PATH_TIME_SERIES/f'sw_omni_{window_h}h.csv'
 def rollAvg(timeserie, window_h):
