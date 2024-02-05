@@ -48,7 +48,7 @@ class ModelInstantier2(ModelInstantier):
     self.featureTag = featureTag
     
   def _optimTag(self):
-    optConf = self.buildModelParams['optimizer']
+    optConf = self.buildModelParams['optimizer'].get_config()
     name = optConf['name'][0] + optConf['name'][-1]
     lr = optConf['learning_rate']
     lr = f'{lr:.0e}'
@@ -78,7 +78,7 @@ class ModelInstantier2(ModelInstantier):
             tag += '_Ptrd'
     else:
       tag += '_'
-    if 'optimizers' in self.buildModelParams.keys():
+    if 'optimizer' in self.buildModelParams.keys():
       tag += f'_{self._optimTag()}'
     if self.extraNameTag is not None:
       tag += f'_{self.extraNameTag}'
@@ -189,7 +189,7 @@ def setUpResultFolder(models,
         mtcDict[m.name] = m
     log = pd.read_csv(resDir + '/log.csv')
     #full_name_combs  = [model.name + '_' + str(len(timesteps))+'ts_'+reduce(lambda x,y:x+'x'+y,[f'{channel:0>4}'[0:4] for channel in channels]) for model, channels, timesteps in models]
-    full_name_combs  = [model.fullNameFunc(channels,h) for model, channels, h in models]
+    full_name_combs  = [model.fullNameFunc(channels,windows_avg_h) for model, channels, h in models]
     new_combs = [comb for comb in full_name_combs if comb not in log['model'].values]
     log_new = pd.DataFrame({'model':new_combs, 'status': np.zeros(len(new_combs),dtype=int), 'duration':  np.zeros(len(new_combs),dtype=str)})
     log = log.append(log_new).set_index('model')
