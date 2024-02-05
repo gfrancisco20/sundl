@@ -189,7 +189,7 @@ def setUpResultFolder(models,
         mtcDict[m.name] = m
     log = pd.read_csv(resDir + '/log.csv')
     #full_name_combs  = [model.name + '_' + str(len(timesteps))+'ts_'+reduce(lambda x,y:x+'x'+y,[f'{channel:0>4}'[0:4] for channel in channels]) for model, channels, timesteps in models]
-    full_name_combs  = [model.fullNameFunc(channels,windows_avg_h) for model, channels, h in models]
+    full_name_combs  = [model.fullNameFunc(channels,windows_avg_h) for model, channels in models]
     new_combs = [comb for comb in full_name_combs if comb not in log['model'].values]
     log_new = pd.DataFrame({'model':new_combs, 'status': np.zeros(len(new_combs),dtype=int), 'duration':  np.zeros(len(new_combs),dtype=str)})
     log = log.append(log_new).set_index('model')
