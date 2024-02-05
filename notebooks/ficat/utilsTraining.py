@@ -78,7 +78,7 @@ class ModelInstantier2(ModelInstantier):
             tag += '_Ptrd'
     else:
       tag += '_'
-    if 'optimizer' in self.buildModelParams.keys():
+    if 'optimizer' in self.buildModelParams.keys() and self.archiTag[:3] not in ['pst','Pst']:
       tag += f'_{self._optimTag()}'
     if self.extraNameTag is not None:
       tag += f'_{self.extraNameTag}'
@@ -95,6 +95,7 @@ class ModelInstantier2(ModelInstantier):
           tag += f'x{minTs}H'
       else:
         tag += f'x{minTs}Hx{int(maxTs/24)}Dx{numTs}'
+  
     if 'ts_off_scalar_hours' in self.buildDsParams.keys():
       if self.buildDsParams['ts_off_scalar_hours'] is not None:
         ts_off_scalar_hours =  self.buildDsParams['ts_off_scalar_hours']
@@ -139,6 +140,7 @@ def setUpResultFolder(models,
                       saveModel = False,
                       windows_avg_h = None
                       ):
+  
   if continuingFolder is None:
     #creating a new result folder
     

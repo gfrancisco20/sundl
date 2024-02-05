@@ -98,6 +98,9 @@ if isinstance(PATH_ROOT_DRIVE,str):
 if isinstance(PATH_ROOT_LOCAL,str):
   PATH_ROOT_LOCAL=Path(PATH_ROOT_LOCAL)
   
+if not PATH_ROOT_LOCAL.exists():
+  os.mkdir(PATH_ROOT_LOCAL)
+  
 PATH_ROOT_DRIVE_DS = PATH_ROOT_DRIVE/'Datasets'
 PATH_IMAGES        = PATH_ROOT_LOCAL/'images'
 PATH_TIME_SERIES   = PATH_ROOT_DRIVE_DS/'Time_Series'
