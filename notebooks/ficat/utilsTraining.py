@@ -127,6 +127,9 @@ class ModelInstantier2(ModelInstantier):
     fullname += f'_{h}'
     
     return fullname
+  
+  def saveConfig(self, pathConfig):
+    pass
 
 def setUpResultFolder(models, 
                       pathRes,
