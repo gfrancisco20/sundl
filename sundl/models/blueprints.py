@@ -285,9 +285,13 @@ def build_pretrained_model(
       for layer in model.layers:
           layer.trainable = True
     else:
-      for layer in model.layers[-unfreeze_top_N:]:
-          if not isinstance(layer, tf.keras.layers.BatchNormalization):
-              layer.trainable = True
+      ct = 0
+      for layer in reversed(model.layers):#[-unfreeze_top_N:]:
+        if not isinstance(layer, tf.keras.layers.BatchNormalization):
+          layer.trainable = True
+          ct+=1
+        if ct > unfreeze_top_N:
+          break
 
   if feature_reduction is not None:
     for layer in model.layers:

@@ -285,7 +285,7 @@ def saveTrainingResults(resDir, res, best, bestCVCrossEpoch, full_name_comb, cv_
     else:
         if bestCVCrossEpoch is None: bestCVCrossEpoch = pd.read_csv(resDir+f'/bestsCVCrossEpoch.csv')
         # bestCVCrossEpoch = bestCVCrossEpoch.append(tmp, ignore_index=True)
-        bestCVCrossEpoch = pd.concat([bestCVCrossEpoch,pd.DataFrame(tmp,index = range(len(bestCVCrossEpoch),len(tmp)))],axis=0,ignore_index=True)
+        bestCVCrossEpoch = pd.concat([bestCVCrossEpoch,pd.DataFrame(tmp,index = [len(bestCVCrossEpoch)])],axis=0,ignore_index=True)
     bestCVCrossEpoch.to_csv(resDir+f'/bestsCVCrossEpoch.csv',index=False)
     res[full_name_comb] = [dfRes] # --> dropping individual kfold resutls
   #===================================================
@@ -315,7 +315,7 @@ def saveTrainingResults(resDir, res, best, bestCVCrossEpoch, full_name_comb, cv_
   else:
     if best is None: best = pd.read_csv(resDir+f'/bests.csv')
     # best = best.append(tmp, ignore_index=True)
-    best = pd.concat([best,pd.DataFrame(tmp,index = range(len(best),len(tmp)))],axis=0,ignore_index=True)
+    best = pd.concat([best,pd.DataFrame(tmp,index = [len(best)])],axis=0,ignore_index=True)
   best.to_csv(resDir+f'/bests.csv',index=False)
   
   
