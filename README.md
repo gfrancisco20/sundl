@@ -1,3 +1,5 @@
+# Common utilities to several space weather projects
+
 ## Flare forecasting model limits and PCNN
 
-Go to [ReadMe](https://github.com/gfrancisco20/sundl/blob/master/notebooks/flare_limits_pcnn/README.md)
+Go to [ReadMe](https://github.com/gfrancisco20/flare_limits_pcnn/blob/master/README.md)
