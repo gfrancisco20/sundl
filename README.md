@@ -2,4 +2,4 @@
 
 ## Flare forecasting model limits and PCNN
 
-Go to [ReadMe](https://github.com/gfrancisco20/flare_limits_pcnn/README.md)
+Go to [ReadMe](https://github.com/gfrancisco20/flare_limits_pcnn/blob/master/README.md)
