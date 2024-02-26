@@ -134,7 +134,10 @@ class ModelInstantier():
     tmp = self.config.copy()
     savedConfig = {}
     for k in tmp.keys():
-      savedConfig[k] = tmp[k].copy()
+      if isinstance(tmp[k], dict):
+        savedConfig[k] = tmp[k].copy()
+      else:
+        savedConfig[k] = tmp[k]
     try:
       with open(pathConfig, 'wb') as f1:
         pickle.dump(savedConfig, f1)
