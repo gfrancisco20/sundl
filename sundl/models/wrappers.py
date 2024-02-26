@@ -131,15 +131,21 @@ class ModelInstantier():
     return self.buildDsFunction(**self.buildDsParams)
   
   def saveConfig(self, pathConfig):
-    savedConfig = self.config.copy()
-    for modelParam in self.config['model']:
-      if modelParam == 'tfModel':
-       savedConfig['model']['tfModel'] = savedConfig['model']['tfModel'].__name__
-      if isinstance(self.config['model'][modelParam], tf.keras.layers.Layer):
-        savedConfig['model'][modelParam] = savedConfig['model'][modelParam].name
-    with open(pathConfig, 'wb') as f1:
-      pickle.dump(savedConfig, f1)
-  
+    savedConfig = self.config.deepcopy()
+    try:
+      with open(pathConfig, 'wb') as f1:
+        pickle.dump(savedConfig, f1)
+    except Exception as e:
+      print(e)
+      print('Saving config without tfModel and tf-layers')
+      for modelParam in self.config['model']:
+        if modelParam == 'tfModel':
+          savedConfig['model']['tfModel'] = savedConfig['model']['tfModel'].__name__
+        if isinstance(self.config['model'][modelParam], tf.keras.layers.Layer):
+          savedConfig['model'][modelParam] = savedConfig['model'][modelParam].name
+      with open(pathConfig, 'wb') as f1:
+        pickle.dump(savedConfig, f1)
+    
 def reinstatiateOptim(optimizer):
   optiConfig = optimizer.get_config()
   if type(optimizer)!=str:
