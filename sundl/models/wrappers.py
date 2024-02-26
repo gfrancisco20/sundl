@@ -131,7 +131,10 @@ class ModelInstantier():
     return self.buildDsFunction(**self.buildDsParams)
   
   def saveConfig(self, pathConfig):
-    savedConfig = self.config.deepcopy()
+    tmp = self.config.copy()
+    savedConfig = {}
+    for k in tmp.keys():
+      savedConfig[k] = tmp[k].copy()
     try:
       with open(pathConfig, 'wb') as f1:
         pickle.dump(savedConfig, f1)
