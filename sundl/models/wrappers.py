@@ -138,7 +138,7 @@ class ModelInstantier():
       if isinstance(self.config['model'][modelParam], tf.keras.layers.Layer):
         savedConfig['model'][modelParam] = savedConfig['model'][modelParam].name
     with open(pathConfig, 'wb') as f1:
-      pickle.dump(self.config, f1)
+      pickle.dump(savedConfig, f1)
   
 def reinstatiateOptim(optimizer):
   optiConfig = optimizer.get_config()
