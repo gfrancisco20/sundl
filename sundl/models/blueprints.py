@@ -46,7 +46,7 @@ def build_persistant_model(
   return model
 
 def __build_pretrained_innerPatch(
-    num_classes,
+    num_classes = None,
     img_size = (256, 256),
     tfModel = tf.keras.applications.efficientnet_v2.EfficientNetV2S,
     pretainedWeight = True,
@@ -102,7 +102,7 @@ def __build_pretrained_innerPatch(
   return patch_model
 
 def build_pretrained_PatchCNN(
-    num_classes,
+    num_classes = None,
     img_size = (512, 1024, 3),
     patches_size = (256, 256, 3),
     tfModel = tf.keras.applications.efficientnet_v2.EfficientNetV2S,

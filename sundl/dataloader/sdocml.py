@@ -103,6 +103,7 @@ def builDS_image_feature(
   shape3d           = False,
   regression        = False,
   labelEncoder      = None,
+  encoderIsTf       = True,
   scalarEncoder     = None,
   weightByClass     = False,
   weightOffLabIdx   = 0,
@@ -120,6 +121,9 @@ def builDS_image_feature(
   strictly_pos_label = True,
 **kwargs # bacckward compt
 ):
+  if labelEncoder is not None and encoderIsTf:
+    temp = labelEncoder
+    labelEncoder = lambda x: temp(x).numpy()
   dfTimeseries = dfTimeseries.copy()
   samples = samples.copy()
   if scalarCol is None:
@@ -641,6 +645,8 @@ def buildDS_persistant(num_classes,
                 img_size = None # for compatibility only
                 ):
   if historyEncoder is None: historyEncoder = labelEncoder
+
+    
   # offseting
   dfTimeseries.index = dfTimeseries.index.shift(periods = -ts_off_label_hours, freq='H')
   input_lag = - ts_off_history_hours
@@ -713,6 +719,7 @@ def buildDS_persistant_MTS(
                 ts_off_label_hours   = [24], # offset from sample date
                 ts_off_history_hours = [0], # offset from sample date
                 labelEncoder      = None,
+                encoderIsTf       = True,
                 labelCol          = 'mpf',
                 prefetch          = True,
                 cache             = True,
@@ -725,8 +732,12 @@ def buildDS_persistant_MTS(
                 classTresholds = {'quiet': (0,1e-7), 'B':(1e-7,1e-6), 'C':(1e-6,1e-5), 'M':(1e-5,1e-4), 'X': (1e-4,np.inf)},
                 classWeights = {'quiet': 0.2, 'B':0.2, 'C':0.2, 'M':0.2, 'X': 0.2},
                 img_size = None, # for compatibility only
-                weightOffLabIdx = None
+                weightOffLabIdx = None,
+                **kwargs
                 ):
+  if labelEncoder is not None and encoderIsTf:
+    temp = labelEncoder
+    labelEncoder = lambda x: temp(x).numpy()
   dfTimeseries = dfTimeseries.copy()
   samples = samples.copy()
   if type(ts_off_label_hours) not in [np.ndarray,list]:

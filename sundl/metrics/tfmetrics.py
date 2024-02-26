@@ -22,7 +22,7 @@ import tensorflow as tf
 
 epsilon = 1e-20
 
-class CustomMetrics(tf.keras.metrics.Metric):#,ABC):
+class BinaryMetrics(tf.keras.metrics.Metric):#,ABC):
   def __init__(self, 
                name, 
                threshold = 0.5, 
@@ -31,7 +31,7 @@ class CustomMetrics(tf.keras.metrics.Metric):#,ABC):
                classId = 1, 
                **kwargs
   ):
-    super(CustomMetrics, self).__init__(name=name, **kwargs)
+    super(BinaryMetrics, self).__init__(name=name, **kwargs)
     self.tp = self.add_weight(name='tp', initializer='zeros')
     self.tn = self.add_weight(name='tn', initializer='zeros')
     self.fp = self.add_weight(name='fp', initializer='zeros')
@@ -118,53 +118,125 @@ class CustomMetrics(tf.keras.metrics.Metric):#,ABC):
   def result(self):
     pass
 
+class RegressionMetrics(tf.keras.metrics.Metric):#,ABC):
+  def __init__(self, 
+               name, 
+               threshold = 0.5, 
+               y_transform = 'one_hot', 
+               labelDecoder = None, 
+               classId = None, 
+               **kwargs
+  ):
+    super(RegressionMetrics, self).__init__(name=name, **kwargs)
+    self.threshold = threshold
+    self.classId = classId
+    
+    if threshold > 1: 
+      threshold = threshold/100
+    if threshold == 0.5:
+        self.__name__ = name
+    else:
+        self.__name__ = name+f'_{100*threshold:0>2.0f}'
+ 
+    self.labelDecoder = labelDecoder
+
+    self.y_transform = y_transform
+     # mapping if neccessary for __flux2srxClasses's f2c values (nn output might be a function of the actual flux, labelDecoder should be the inverse of that function)
+    # TEMPORARY
+    if y_transform is None and labelDecoder is not None:
+      def y_transform(y_true, y_pred=None):
+        if y_pred is None:
+          return self.labelDecoder(y_true)
+        else:
+          return self.labelDecoder(y_true), self.labelDecoder(y_pred)
+      self.y_transform = y_transform
+
+
+  @abstractmethod
+  def update_state(self):
+    pass
+
+  @abstractmethod
+  def result(self):
+    pass
+  
+  # def __call__(self, y_true, y_pred=None):
+  #   return self.compute_metric(y_true, y_pred)
+
 def notnull(x):
   if x==0:
     return epsilon # tf.keras.backend.epsilon()
   else:
     return x
 
-class MAE(CustomMetrics):
-    def __init__(self, y_transform = None, name = None, labelDecoder = None):
-        if name is None: name = 'MAE'
-        super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder)
-    def result(self, y_true, y_pred=None):
-        if self.labelDecoder is not None:
-          y_true = self.labelDecoder(y_true)
-          y_pred = self.labelDecoder(y_pred)
-        return tf.reduce_mean(tf.abs(y_true-y_pred))
-class RMSE(CustomMetrics):
-    def __init__(self, y_transform = None, name = None, labelDecoder = None):
-        if name is None: name = 'RMSE'
-        super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder)
-    def result(self, y_true, y_pred=None):
-        if self.labelDecoder is not None:
-          y_true = self.labelDecoder(y_true)
-          y_pred = self.labelDecoder(y_pred)
-        return tf.math.sqrt(tf.reduce_mean(tf.square(y_true-y_pred)))
+class MAE(RegressionMetrics):
+  def __init__(self, y_transform = None, name = None, labelDecoder = None):
+    if name is None: name = 'MAE'
+    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder)
+    self.errs = self.add_weight(name='errs', initializer='zeros')
+    self.size = self.add_weight(name='size', initializer='zeros')
+  
+  def update_state(self, y_true, y_pred, sample_weight=None):
+    if self.labelDecoder is not None:
+      y_true = self.labelDecoder(y_true)
+      y_pred = self.labelDecoder(y_pred)
+    if self.classId is not None:
+      errs = tf.reduce_sum(tf.abs(y_true-y_pred))
+    else:
+      errs = tf.reduce_sum(tf.abs(y_true[:self.classId]-y_pred[:self.classId]))
+    # size = tf.cast(y_pred.shape[0],'float32')
+    size = tf.cast(len(y_pred),'float32')
+    self.errs.assign_add(errs) 
+    self.size.assign_add(size)    
+  
+  def result(self):
+      return self.errs / self.size
+      
+class RMSE(RegressionMetrics):
+  def __init__(self, y_transform = None, name = None, labelDecoder = None):
+    if name is None: name = 'RMSE'
+    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder)
+    self.errs = self.add_weight(name='errs', initializer='zeros')
+    self.size = self.add_weight(name='size', initializer='zeros')
+  
+  def update_state(self, y_true, y_pred, sample_weight=None):
+    if self.labelDecoder is not None:
+      y_true = self.labelDecoder(y_true)
+      y_pred = self.labelDecoder(y_pred)
+    if self.classId is not None:
+      errs = tf.reduce_sum(tf.square(y_true-y_pred))
+    else:
+      errs = tf.reduce_sum(tf.square(y_true[:self.classId]-y_pred[:self.classId]))
+    # size = tf.cast(y_pred.shape[0],'float32')
+    size = tf.cast(len(y_pred),'float32')
+    self.errs.assign_add(errs) 
+    self.size.assign_add(size)    
+  
+  def result(self):
+    return tf.sqrt(self.errs / self.size)
 
-class Recall(CustomMetrics):
+class Recall(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'recall'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
     def result(self):
         return self.tp / notnull(self.all_positives())
 
-class Precision(CustomMetrics):
+class Precision(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'precision'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
     def result(self):
         return self.tp / notnull(self.predicted_positives())
 
-class F1(CustomMetrics):
+class F1(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'f1'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
     def result(self):
         return 2 * self.tp / notnull(2*self.tp + self.fp + self.fn)
 
-class Tss(CustomMetrics):
+class Tss(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'tss'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
@@ -175,7 +247,7 @@ class Tss(CustomMetrics):
         tnr = self.tn / notnull(self.all_negatives())
         return recall + tnr - 1
 
-class HssAlt(CustomMetrics):
+class HssAlt(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'hss_alt'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
@@ -186,7 +258,7 @@ class HssAlt(CustomMetrics):
         precision = self.tp / notnull(self.predicted_positives())
         return recall * (2 - 1/notnull(precision))
 
-class Hss(CustomMetrics):
+class Hss(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'hss'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
@@ -195,7 +267,7 @@ class Hss(CustomMetrics):
         denom =  self.all_positives() * (self.fn+self.tn) + self.all_negatives() * (self.tp+self.fp)
         return num/notnull(denom)
 
-class Mcc(CustomMetrics):
+class Mcc(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'mcc'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
@@ -205,7 +277,7 @@ class Mcc(CustomMetrics):
         return num/notnull(tf.math.sqrt(denom))
 
 
-class Far(CustomMetrics):
+class Far(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'far'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
@@ -213,25 +285,25 @@ class Far(CustomMetrics):
         # FP / (TP + FP)
         return self.fp / notnull(self.predicted_positives())
 
-class TP(CustomMetrics):
+class TP(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'TP'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
     def result(self):
         return self.tp
-class TN(CustomMetrics):
+class TN(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'TN'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
     def result(self):
         return self.tn
-class FP(CustomMetrics):
+class FP(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'FP'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
     def result(self):
         return self.fp
-class FN(CustomMetrics):
+class FN(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
         if name is None: name = 'FN'
         super().__init__(name, threshold = threshold, y_transform = y_transform, labelDecoder = labelDecoder, classId = classId)
