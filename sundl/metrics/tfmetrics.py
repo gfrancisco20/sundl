@@ -22,6 +22,115 @@ import tensorflow as tf
 
 epsilon = 1e-20
 
+class MultiClassMetrics(tf.keras.metrics.Metric):#,ABC):
+  def __init__(self, 
+               name, 
+               threshold = 0.5, 
+               classDecoders = None, 
+               num_class = 3, 
+               **kwargs
+  ):
+    super(MultiClassMetrics, self).__init__(name=name, **kwargs)
+    self.tp = [self.add_weight(name=f'tp_{clsIdx}', initializer='zeros') for clsIdx in range(num_class)]
+    self.tn = [self.add_weight(name=f'tn_{clsIdx}', initializer='zeros') for clsIdx in range(num_class)]
+    self.fp = [self.add_weight(name=f'fp_{clsIdx}', initializer='zeros') for clsIdx in range(num_class)]
+    self.fn = [self.add_weight(name=f'fn_{clsIdx}', initializer='zeros') for clsIdx in range(num_class)]
+    self.threshold = threshold
+    self.num_class = num_class
+    
+    if threshold > 1: 
+      threshold = threshold/100
+    if threshold == 0.5:
+        self.__name__ = name
+    else:
+        self.__name__ = name+f'_{100*threshold:0>2.0f}'
+ 
+    if classDecoders is None:
+      classDecoders = []
+      for clsIdx in range(self.num_class):
+        classDecoders[clsIdx] = lambda y_true, y_pred: (tf.cast(y_true[:,clsIdx]>self.threshold, dtype=tf.float32), 
+                                                        tf.cast(y_pred[:,clsIdx]>self.threshold, dtype=tf.float32))
+    self.classDecoders = classDecoders
+    
+  def __true_positives(self, y_transform, y_true, y_pred):
+    y_true, y_pred = y_transform(y_true, y_pred)
+    return tf.reduce_sum(y_true * y_pred) #tf.reduce_sum(tf.round(tf.clip_by_value(y_true * y_pred, 0, 1)))
+  def __true_negatives(self, y_transform, y_true, y_pred,):
+    y_true, y_pred = y_transform(y_true, y_pred)
+    return tf.reduce_sum((y_true-1) * (y_pred-1)) #tf.reduce_sum(tf.round(tf.clip_by_value((y_true-1) * (y_pred-1), 0, 1)))
+  def __false_positives(self, y_transform, y_true, y_pred):
+    y_true, y_pred = y_transform(y_true, y_pred)
+    return tf.reduce_sum(-(y_true-1) * (y_pred)) #tf.reduce_sum(tf.round(tf.clip_by_value(-(y_true-1) * (y_pred), 0, 1)))
+  def __false_negatives(self, y_transform, y_true, y_pred):
+    y_true, y_pred = y_transform(y_true, y_pred)
+    return tf.reduce_sum(-(y_true) * (y_pred-1)) #tf.reduce_sum(tf.round(tf.clip_by_value(-(y_true) * (y_pred-1), 0, 1)))
+
+  def update_state(self, y_true, y_pred, sample_weight=None):
+    for clsIdx in range(self.num_class):
+      y_transform = lambda x,y: (self.classDecoders[clsIdx](x), self.classDecoders[clsIdx](y))
+      tp = self.__true_positives(y_transform, y_true, y_pred)
+      tn = self.__true_negatives(y_transform, y_true, y_pred)
+      fp = self.__false_positives(y_transform, y_true, y_pred)
+      fn = self.__false_negatives(y_transform, y_true, y_pred)
+      self.tp[clsIdx].assign_add(tf.reduce_sum(tp))
+      self.tn[clsIdx].assign_add(tf.reduce_sum(tn))
+      self.fp[clsIdx].assign_add(tf.reduce_sum(fp))
+      self.fn[clsIdx].assign_add(tf.reduce_sum(fn))
+    
+  def all_positives(self, clsIdx):
+    return self.tp[clsIdx] + self.fn[clsIdx]
+  def all_negatives(self, clsIdx):
+    return self.tn[clsIdx] + self.fp[clsIdx]
+  def predicted_positives(self, clsIdx):
+    return self.tp[clsIdx] + self.fp[clsIdx]
+  def predicted_negatives(self, clsIdx):
+    return self.tn[clsIdx] + self.fn[clsIdx]
+
+  @abstractmethod
+  def result(self):
+    pass
+  
+class Mcc_Multi(MultiClassMetrics):
+  def __init__(self, threshold = 0.5, name = None, classDecoders = None, num_class = 3, averaging = 'macro', macroWeights = None):
+    if name is None: name = 'mcc'
+    super().__init__(name, threshold = threshold, classDecoders = classDecoders, num_class = num_class)
+    self.averaging = averaging
+    if macroWeights is None:
+      macroWeights = [1 for k in range(num_class)]
+    self.macroWeights = macroWeights
+  def formula(self, tp, tn, fp, fn):
+    num = tp*tn - fp*fn
+    denom =  (tp+fn) * (fn+tn) * (tn+fp) * (tp+fp)
+    return num/notnull(tf.math.sqrt(denom))
+  def result(self):
+    if self.averaging == 'macro':
+      mcc = 0
+      totWeight = 0
+      for clsIdx in range(self.num_class):
+        tp = self.tp[clsIdx]
+        tn = self.tn[clsIdx]
+        fp = self.fp[clsIdx]
+        fn = self.fn[clsIdx]
+        mcc += self.macroWeights[clsIdx] * self.formula(tp, tn, fp, fn)
+        totWeight += self.macroWeights[clsIdx]
+      mcc /= totWeight
+    elif self.averaging == 'micro':
+      tp = 0
+      tn = 0
+      fp = 0
+      fn = 0
+      for clsIdx in range(self.num_class):
+        tp += self.tp[clsIdx]
+        tn += self.tn[clsIdx]
+        fp += self.fp[clsIdx]
+        fn += self.fn[clsIdx]
+      mcc = self.formula(tp, tn, fp, fn)
+    return mcc
+      
+    
+      
+
+
 class BinaryMetrics(tf.keras.metrics.Metric):#,ABC):
   def __init__(self, 
                name, 
@@ -214,6 +323,47 @@ class RMSE(RegressionMetrics):
   
   def result(self):
     return tf.sqrt(self.errs / self.size)
+  
+class R2(RegressionMetrics):
+  def __init__(self, y_transform = None, name = None, labelDecoder = None):
+    if name is None: name = 'r2'
+    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder)
+    self.size   = self.add_weight(name='size', initializer='zeros')
+    self.yTrue  = self.add_weight(name='yTrue', initializer='zeros')
+    self.yTrue2 = self.add_weight(name='yTrue2', initializer='zeros')
+    self.yPred  = self.add_weight(name='yPred', initializer='zeros')
+    self.yPred2 = self.add_weight(name='yPred2', initializer='zeros')
+    self.prod   = self.add_weight(name='prod', initializer='zeros')
+    
+  def update_state(self, y_true, y_pred, sample_weight=None):
+    if self.labelDecoder is not None:
+      y_true = self.labelDecoder(y_true)
+      y_pred = self.labelDecoder(y_pred)
+    if self.classId is not None:
+      yTrue = tf.reduce_sum(y_true)
+      yPred = tf.reduce_sum(y_pred)
+      yTrue2 = tf.reduce_sum(tf.square(y_true))
+      yPred2 = tf.reduce_sum(tf.square(y_pred))
+      prod = tf.reduce_sum(y_true * y_pred )
+    else:
+      yTrue = tf.reduce_sum(y_true[:self.classId])
+      yPred = tf.reduce_sum(y_pred[:self.classId])
+      yTrue2 = tf.reduce_sum(tf.square(y_true[:self.classId]))
+      yPred2 = tf.reduce_sum(tf.square(y_pred[:self.classId]))
+      prod = tf.reduce_sum(y_true[:self.classId] * y_pred[:self.classId] )
+    size = tf.cast(len(y_pred),'float32')
+    self.size.assign_add(size)   
+    self.yTrue.assign_add(yTrue)   
+    self.yTrue2.assign_add(yTrue2)   
+    self.yPred.assign_add(yPred)   
+    self.yPred2.assign_add(yPred2)   
+    self.prod.assign_add(prod)    
+    
+  def result(self):
+    n = self.size
+    n2 = n*n
+    return tf.square(self.prod/n - self.yTrue * self.yPred / n2) / ( (self.yTrue2/n2 - tf.square(self.yTrue/n)) * (self.yPred2/n2 - tf.square(self.yPred/n) ) )
+  
 
 class Recall(BinaryMetrics):
     def __init__(self, threshold = 0.5, y_transform = 'one_hot', name = None, labelDecoder = None, classId = 1):
