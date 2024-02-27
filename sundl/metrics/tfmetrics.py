@@ -362,7 +362,7 @@ class R2(RegressionMetrics):
   def result(self):
     n = self.size
     n2 = n*n
-    return tf.square(self.prod/n - self.yTrue * self.yPred / n2) / ( (self.yTrue2/n2 - tf.square(self.yTrue/n)) * (self.yPred2/n2 - tf.square(self.yPred/n) ) )
+    return tf.square(self.prod/n - self.yTrue * self.yPred / n2) / ( (self.yTrue2/n - tf.square(self.yTrue/n)) * (self.yPred2/n - tf.square(self.yPred/n) ) )
   
 
 class Recall(BinaryMetrics):
