@@ -55,6 +55,8 @@ def __build_pretrained_innerPatch(
     unfreeze_top_N = None,
     patche_output_type = 'pre_pred', # choose in ['pre_pred', 'flatten_features', 'feature_map']
     meth_patche_agg = 'avg',
+    feature_reduction = None,
+    lastTfConv = 'top_conv',
     **kwargs
 ):
   input = tf.keras.layers.Input(shape=(img_size[0], img_size[1], 3))
@@ -75,12 +77,35 @@ def __build_pretrained_innerPatch(
           if not isinstance(layer, tf.keras.layers.BatchNormalization):
               layer.trainable = True
 
+  if feature_reduction is not None:
+    for layer in model.layers:
+      if layer.name == lastTfConv:
+        preConvInput = layer.input
+    # print(feature_reduction)
+    if type(feature_reduction) == int:
+      top_conv = tf.keras.layers.Conv2D(name = 'top_conv',
+                                  filters = feature_reduction,
+                                  kernel_size = (3,3),
+                                  # strides = [1,1],
+                                  # padding = [1,1],
+                                  activation = None
+                                  )(preConvInput)
+    else:
+      top_conv = feature_reduction(preConvInput)
+    top_conv = tf.keras.layers.BatchNormalization(name =  f'top_bn')(top_conv)
+    top_conv = tf.keras.layers.Activation(activation='relu', name =  f'top_activation')(top_conv)
+    model = tf.keras.models.Model(
+     model.input ,
+     top_conv
+    )
+  x = model.output
+
   if patche_output_type == 'feature_map':
-    patch_model = tf.keras.Model(input, model.output, name="Patch")
+    patch_model = tf.keras.Model(input, x, name="Patch")
     #patch_output = model.output
   else:
     # Output layers
-    x = tf.keras.layers.GlobalAveragePooling2D(name="avg_pool")(model.output)
+    x = tf.keras.layers.GlobalAveragePooling2D(name="avg_pool")(x)
     x = tf.keras.layers.BatchNormalization()(x)
     top_dropout_rate = 0.2
     # flatten_features case output :
@@ -119,6 +144,8 @@ def build_pretrained_PatchCNN(
     meth_patche_agg = 'avg', # choose in ['c1d_lin', 'c1d_relu', 'avg', 'c3d', 'max', 'sum'] * c3d only if patche_output_type=feature_map
     includeInterPatches = False, # include patches covering the vertical intersections of basic patches
     compileModel = True,
+    feature_reduction = None,
+    lastTfConv = 'top_conv',
     **kwargs
 ):
 
@@ -166,6 +193,8 @@ def build_pretrained_PatchCNN(
           unfreeze_top_N,
           patche_output_type,
           meth_patche_agg = meth_patche_agg,
+          feature_reduction = feature_reduction,
+          lastTfConv = lastTfConv,
           **kwargs)
     patches_outputs =  tf.keras.layers.TimeDistributed(patch_model)(patches)
     #print('TS OUUTPUT' , patches_outputs.shape)
@@ -190,6 +219,8 @@ def build_pretrained_PatchCNN(
           unfreeze_top_N,
           patche_output_type,
           meth_patche_agg = meth_patche_agg,
+          feature_reduction = feature_reduction,
+          lastTfConv = lastTfConv,
           **kwargs)
         # renaming layers to get unique names
         patch_model._name = patch_model._name + f'_p{rIdx}x{cIdx}'
