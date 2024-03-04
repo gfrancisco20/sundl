@@ -840,4 +840,5 @@ def buildDS_persistant_MTS(
   shuffle_buffer_size = uncachedShuffBuff
   ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch)
   # dfTimeseries_updated = dfTimeseries[keeped]
-  return ds, [], [], []
+  dfTimeseries_updated = dfTimeseries.copy()
+  return ds, [], [], dfTimeseries_updated
