@@ -811,19 +811,29 @@ def buildDS_persistant_MTS(
     weights_ds = tf.data.Dataset.from_tensor_slices(weights)
     weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
     
+  # # encoding
+  # if labelEncoder is not None:
+  #   for offhistory in ts_off_history_hours:
+  #     dfTimeseries[f'history_{offhistory}'] = dfTimeseries[f'history_{offhistory}'].apply(lambda x: labelEncoder(x))
+  #   for offLabel in ts_off_label_hours:
+  #     dfTimeseries[f'label_{offLabel}'] = dfTimeseries[f'label_{offLabel}'].apply(lambda x: labelEncoder(x))
+  # # tensorflow ds
+  # labels = dfTimeseries[[f'label_{offLabel}'  for offLabel in ts_off_label_hours]].values
+  # inputs = dfTimeseries[[f'history_{offhistory}'  for offhistory in ts_off_history_hours]].values
+  # labels_ds = tf.data.Dataset.from_tensor_slices(labels)
+  # inputs_ds = tf.data.Dataset.from_tensor_slices(inputs)
+  
   # encoding
-  if labelEncoder is not None:
-    for offhistory in ts_off_history_hours:
-      dfTimeseries[f'history_{offhistory}'] = dfTimeseries[f'history_{offhistory}'].apply(lambda x: labelEncoder(x))
-    for offLabel in ts_off_label_hours:
-      dfTimeseries[f'label_{offLabel}'] = dfTimeseries[f'label_{offLabel}'].apply(lambda x: labelEncoder(x))
-      
-
-  # tensorflow ds
   labels = dfTimeseries[[f'label_{offLabel}'  for offLabel in ts_off_label_hours]].values
   inputs = dfTimeseries[[f'history_{offhistory}'  for offhistory in ts_off_history_hours]].values
+  if labelEncoder is not None:
+    labels = labelEncoder(labels)
+    inputs = labelEncoder(inputs)
+
+  # tensorflow ds
   labels_ds = tf.data.Dataset.from_tensor_slices(labels)
   inputs_ds = tf.data.Dataset.from_tensor_slices(inputs)
+  
   if not regression:
     labels_ds = labels_ds.map(lambda x: tf.cast(x, tf.uint8))
     labels_ds = labels_ds.map(lambda x: tf.one_hot(x,num_classes))
