@@ -74,6 +74,7 @@ def windowHistoryFromFlList(flCatalog,
     features['tote'] = flares[colIntFlux].resample(freq, label ='right', closed='right').sum()
     for fclass in classes:
         features[f'tote_{fclass}'] = flares[flares[colClasses]==fclass][colIntFlux].resample(freq, label ='right', closed='right').sum()
+        
   if window_h > timeRes_h:
     if colPeakFlux is not None:
       features['mpf']  = features['mpf'].rolling(window, closed = 'right').max()
@@ -84,7 +85,10 @@ def windowHistoryFromFlList(flCatalog,
       features['tote'] = features['tote'].rolling(window, closed = 'right').sum()
       for fclass in classes:
         features[f'tote_{fclass}'] = features[f'tote_{fclass}'].rolling(window, closed = 'right').sum()
-      features['toteh'] = features['tote'] / window_h
+        
+  if colIntFlux is not None:
+    features['toteh'] = features['tote'] / window_h
+      
   fl_history = pd.DataFrame(features)[2*int(window_h/timeRes_h):-2*int(window_h/timeRes_h)].fillna(0)
   if minDate is not None:
     fl_history = fl_history[(fl_history.index>minDate)]

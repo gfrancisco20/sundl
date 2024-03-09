@@ -125,7 +125,8 @@ def builDS_image_feature(
     temp = labelEncoder
     labelEncoder = lambda x: temp(x).numpy()
   dfTimeseries = dfTimeseries.copy()
-  samples = samples.copy()
+  if samples is not None:
+    samples = samples.copy()
   if scalarCol is None:
     scalarCol = labelCol
   if type(ts_off_label_hours) not in [np.ndarray,list]:
@@ -216,7 +217,8 @@ def builDS_image_feature(
   dfTimeseries.dropna(subset=[f'label_{offLabel}' for offLabel in ts_off_label_hours])
       
   # fiiltering on sample dates
-  dfTimeseries = dfTimeseries[dfTimeseries.index.isin(samples.index)]
+  if samples is not None:
+    dfTimeseries = dfTimeseries[dfTimeseries.index.isin(samples.index)]
 
   if not cache and shuffle:
     # necessary shuffle sumplement with small buffer
@@ -408,7 +410,7 @@ def builDS_image_feature(
       ds = tf.data.Dataset.zip((images_ds, labels_ds))
 
   ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch)
-  dfTimeseries_updated = dfTimeseries[keeped]
+  dfTimeseries_updated = dfTimeseries[keeped].copy()
   return ds, missing_file_idx, missing_file_regexp, dfTimeseries_updated
 
 def builDS_image(pathDir,
