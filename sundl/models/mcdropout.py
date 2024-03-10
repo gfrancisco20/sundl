@@ -1,4 +1,5 @@
 import tensorflow as tf
+from sundl.explainability import getDistributedModel
 
 
 def nnMcDropout(model, dropout_rate):
@@ -45,11 +46,15 @@ def pcnnMcDropout(model, dropout_rate, innerCnnLayerName ='time_distributed', nu
     Returns
     modelWithDrops : model for MC-pred ; do `modelWithDrops(x, training=True)` for preds with dropout
   '''
-  from sundl.explainability import getDistributedModel
   innerModel = getDistributedModel(model, distributedLayerName = innerCnnLayerName)
   innerModelWithDrops = nnMcDropout(innerModel, dropout_rate)
   
-  patchEtractor = tf.keras.models.Model(model.input, innerModel.input)
+  # patchEtractor = tf.keras.models.Model(model.input, model.get_layer('time_distributed').input)
+  for layer in model.layers:
+    # if layer.name == distributedLayerName:
+    if innerCnnLayerName in layer.name:
+      innerInput = layer.input
+  patchEtractor = tf.keras.models.Model(model.input, innerInput)
 
   # patches_outputs =  tf.keras.layers.TimeDistributed(innerModelWithDrops)(patchEtractor.output)
   # patches_outputs = [patches_outputs[:,ptIdx,:] for ptIdx in range(patches_outputs.shape[1])]
