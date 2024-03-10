@@ -23,7 +23,8 @@ def getDistributedModel(model, distributedLayerName = 'time_distributed',custom_
   Retrieve time_distributed layer and instatiate it as a model
   """ 
   for layer in model.layers:
-    if layer.name == distributedLayerName:
+    # if layer.name == distributedLayerName:
+    if distributedLayerName in layer.name:
       distributedModel = layer
   var = distributedModel.variables
   conf = distributedModel.get_config()
