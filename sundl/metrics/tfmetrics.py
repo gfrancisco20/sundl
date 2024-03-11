@@ -279,9 +279,9 @@ def notnull(x):
     return x
 
 class MAE(RegressionMetrics):
-  def __init__(self, y_transform = None, name = None, labelDecoder = None):
+  def __init__(self, y_transform = None, name = None, labelDecoder = None,classId = None):
     if name is None: name = 'MAE'
-    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder)
+    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId)
     self.errs = self.add_weight(name='errs', initializer='zeros')
     self.size = self.add_weight(name='size', initializer='zeros')
   
@@ -302,9 +302,9 @@ class MAE(RegressionMetrics):
       return self.errs / self.size
       
 class RMSE(RegressionMetrics):
-  def __init__(self, y_transform = None, name = None, labelDecoder = None):
+  def __init__(self, y_transform = None, name = None, labelDecoder = None, classId = None):
     if name is None: name = 'RMSE'
-    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder)
+    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId)
     self.errs = self.add_weight(name='errs', initializer='zeros')
     self.size = self.add_weight(name='size', initializer='zeros')
   
@@ -325,9 +325,9 @@ class RMSE(RegressionMetrics):
     return tf.sqrt(self.errs / self.size)
   
 class R2(RegressionMetrics):
-  def __init__(self, y_transform = None, name = None, labelDecoder = None):
+  def __init__(self, y_transform = None, name = None, labelDecoder = None, classId = None):
     if name is None: name = 'r2'
-    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder)
+    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId)
     self.size   = self.add_weight(name='size', initializer='zeros')
     self.yTrue  = self.add_weight(name='yTrue', initializer='zeros')
     self.yTrue2 = self.add_weight(name='yTrue2', initializer='zeros')
