@@ -289,7 +289,7 @@ class MAE(RegressionMetrics):
     if self.labelDecoder is not None:
       y_true = self.labelDecoder(y_true)
       y_pred = self.labelDecoder(y_pred)
-    if self.classId is not None:
+    if self.classId is None:
       errs = tf.reduce_sum(tf.abs(y_true-y_pred))
     else:
       errs = tf.reduce_sum(tf.abs(y_true[:self.classId]-y_pred[:self.classId]))
@@ -312,7 +312,7 @@ class RMSE(RegressionMetrics):
     if self.labelDecoder is not None:
       y_true = self.labelDecoder(y_true)
       y_pred = self.labelDecoder(y_pred)
-    if self.classId is not None:
+    if self.classId is None:
       errs = tf.reduce_sum(tf.square(y_true-y_pred))
     else:
       errs = tf.reduce_sum(tf.square(y_true[:self.classId]-y_pred[:self.classId]))
@@ -339,7 +339,7 @@ class R2(RegressionMetrics):
     if self.labelDecoder is not None:
       y_true = self.labelDecoder(y_true)
       y_pred = self.labelDecoder(y_pred)
-    if self.classId is not None:
+    if self.classId is None:
       yTrue = tf.reduce_sum(y_true)
       yPred = tf.reduce_sum(y_pred)
       yTrue2 = tf.reduce_sum(tf.square(y_true))
