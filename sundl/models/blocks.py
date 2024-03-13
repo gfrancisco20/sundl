@@ -1,3 +1,7 @@
+'''
+Collection of usefull layers and functional/sequential blocks
+'''
+
 import tensorflow as tf
 import numpy as np
 
