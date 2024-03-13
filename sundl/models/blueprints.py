@@ -389,8 +389,8 @@ def build_pretrained_model(
   return model
   
 def build_cct_multiModal(
-    image_size         = None,
-    input_shape        = (224,224,1),
+    img_size         = None,
+    input_shape        = (224,224,1), # if multimodal add channel dimension at the begining, e.g. (5, 224,224,1)
     num_heads          = 2 ,
     projection_dim     = 128,
     transformer_units  = [128, 128],
@@ -398,10 +398,17 @@ def build_cct_multiModal(
     tokenizer_config   = None,
     stochastic_depth_rate = 0.2,
     preprocessing = None,
-    cross_channel_attention = False,
-    cross_channel_cct = False,
+    cross_channel_attention = False, # merge multimodal features before transformer layers
+    cross_channel_cct       = False, # merge multimodal features at the end of the CCT (before final MLP)
     regression = True,
-    num_classes = 2
+    num_classes = 2,
+    optimizer = None,
+    loss = None,
+    metrics = None,
+    compileModel = False,
+    scalarFeaturesSize = None,
+    labelSize = 1,
+    **kwargs
 ):
   
   if cross_channel_attention and cross_channel_cct:
@@ -415,7 +422,7 @@ def build_cct_multiModal(
   # print(cct_input_shape)
   
   Cct = Cct_Block_Functional(
-    image_size         = image_size,
+    img_size         = img_size,
     input_shape        = cct_input_shape,
     num_heads          = num_heads ,
     projection_dim     = projection_dim,
@@ -436,11 +443,15 @@ def build_cct_multiModal(
     x = Cct(input)
     
   if regression:
-    output = tf.keras.layers.Dense(1, name="pred")(x)
+    output = tf.keras.layers.Dense(labelSize, name="pred")(x)
   else:
     output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred")(x)
   
   model = tf.keras.Model(input, output, name="Patch")
+  
+  if compileModel:
+    optimizer = reinstatiateOptim(optimizer)
+    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
   
   return model
 
