@@ -5,6 +5,7 @@ Functions to instantiate tensorflow models
 import tensorflow as tf
 
 from sundl.models.wrappers import reinstatiateOptim
+from sundl.models.blocks import Cct_Block_Functional
 
 __all__ = ['build_pretrained_model',
            'build_pretrained_PatchCNN',
@@ -386,3 +387,60 @@ def build_pretrained_model(
     optimizer = reinstatiateOptim(optimizer)
     model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
   return model
+  
+def build_cct_multiModal(
+    image_size         = None,
+    input_shape        = (224,224,1),
+    num_heads          = 2 ,
+    projection_dim     = 128,
+    transformer_units  = [128, 128],
+    transformer_layers = 2,
+    tokenizer_config   = None,
+    stochastic_depth_rate = 0.2,
+    preprocessing = None,
+    cross_channel_attention = False,
+    cross_channel_cct = False,
+    regression = True,
+    num_classes = 2
+):
+  
+  if cross_channel_attention and cross_channel_cct:
+    raise Exception(f'Cannot use both `cross_channel_attention` and `cross_channel_cct`')
+  
+  if cross_channel_cct and len(input_shape) > 3:
+    cct_input_shape = input_shape[1:]
+  else:
+    cct_input_shape = input_shape
+    
+  # print(cct_input_shape)
+  
+  Cct = Cct_Block_Functional(
+    image_size         = image_size,
+    input_shape        = cct_input_shape,
+    num_heads          = num_heads ,
+    projection_dim     = projection_dim,
+    transformer_units  = transformer_units,
+    transformer_layers = transformer_layers,
+    tokenizer_config   = tokenizer_config,
+    stochastic_depth_rate = stochastic_depth_rate,
+    preprocessing = preprocessing,
+    cross_channel_attention = cross_channel_attention)
+  
+  input = tf.keras.layers.Input(input_shape)
+  
+  if cross_channel_cct:
+    print('STaRRT')
+    x = tf.keras.layers.TimeDistributed(Cct)(input)
+    x  = tf.reshape(x, [-1, x.shape[1]*x.shape[2]])
+  else:
+    x = Cct(input)
+    
+  if regression:
+    output = tf.keras.layers.Dense(1, name="pred")(x)
+  else:
+    output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred")(x)
+  
+  model = tf.keras.Model(input, output, name="Patch")
+  
+  return model
+
