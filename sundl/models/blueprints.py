@@ -409,6 +409,7 @@ def build_cct_multiModal(
     scalarFeaturesSize = None,
     labelSize = 1,
     modelName = 'Cct',
+    preprocessChannelsIndependantly = False,
     **kwargs
 ):
   
@@ -432,6 +433,7 @@ def build_cct_multiModal(
     tokenizer_config   = tokenizer_config,
     stochastic_depth_rate = stochastic_depth_rate,
     preprocessing = preprocessing,
+    preprocessChannelsIndependantly = preprocessChannelsIndependantly,
     cross_channel_attention = cross_channel_attention)
   
   if scalarFeaturesSize is not None:

@@ -155,6 +155,7 @@ def Cct_Block_Functional(
     tokenizer_config   = None,
     stochastic_depth_rate = 0.2,
     preprocessing = None,
+    preprocessChannelsIndependantly = False,
     cross_channel_attention = False,
 ):
     
@@ -176,15 +177,24 @@ def Cct_Block_Functional(
       )
     
     if len(input_shape)>3:
-      channels = []
-      
-      # print(inputs[:,0].shape)
-      for chanIdx in range(input_shape[0]):
-        # print(chanIdx, input_shape[0])
-        channels.append(preprocessing(inputs[:,chanIdx]))
-      # print('OK')
-      augmented = tf.stack(channels, axis=1)
-      # print(augmented.shape)
+      if preprocessChannelsIndependantly:
+        channels = []
+        
+        # print(inputs[:,0].shape)
+        for chanIdx in range(input_shape[0]):
+          # print(chanIdx, input_shape[0])
+          channels.append(preprocessing(inputs[:,chanIdx]))
+        # print('OK')
+        augmented = tf.stack(channels, axis=1)
+        # print(augmented.shape)
+      else:
+        inputs = tf.transpose(inputs, [0, 4, 2, 3, 1])
+        inputs = inputs[:,0]
+        print('shape before preprocessing: ' , inputs.shape)
+        augmented = preprocessing(inputs)
+        augmented = tf.expand_dims(augmented, axis=1)
+        augmented = tf.transpose(augmented, [0, 4, 2, 3, 1])
+        print('preproc final shape : ' , augmented.shape)
     else:
       augmented = preprocessing(inputs)
 
