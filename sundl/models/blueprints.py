@@ -408,6 +408,7 @@ def build_cct_multiModal(
     compileModel = False,
     scalarFeaturesSize = None,
     labelSize = 1,
+    modelName = 'Cct',
     **kwargs
 ):
   
@@ -433,21 +434,31 @@ def build_cct_multiModal(
     preprocessing = preprocessing,
     cross_channel_attention = cross_channel_attention)
   
-  input = tf.keras.layers.Input(input_shape)
+  if scalarFeaturesSize is not None:
+    image = tf.keras.layers.Input(shape=(img_size[0], img_size[1], img_size[2]), name='image')
+    scalar_input =  tf.keras.layers.Input(shape=(scalarFeaturesSize), name='scalars')
+  else:
+    image = tf.keras.layers.Input(input_shape)
   
   if cross_channel_cct:
     print('STaRRT')
-    x = tf.keras.layers.TimeDistributed(Cct)(input)
+    x = tf.keras.layers.TimeDistributed(Cct)(image)
     x  = tf.reshape(x, [-1, x.shape[1]*x.shape[2]])
   else:
-    x = Cct(input)
+    x = Cct(image)
+    
+  if scalarFeaturesSize is not None:
+    x = tf.keras.layers.Concatenate(axis=1)([x,tf.keras.layers.BatchNormalization()(scalar_input)])
     
   if regression:
     output = tf.keras.layers.Dense(labelSize, name="pred")(x)
   else:
     output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred")(x)
   
-  model = tf.keras.Model(input, output, name="Patch")
+  if scalarFeaturesSize is not None:
+    model = tf.keras.Model((image,scalar_input), output, name=modelName)
+  else:
+    model = tf.keras.Model(image, output, name=modelName)
   
   if compileModel:
     optimizer = reinstatiateOptim(optimizer)
