@@ -131,7 +131,7 @@ class StochasticDepth(tf.keras.layers.Layer):
             keep_prob = 1 - self.drop_prob
             shape = (tf.shape(x)[0],) + (1,) * (len(x.shape) - 1)
             random_tensor = keep_prob + tf.random.uniform(
-                shape, 0, 1, seed=self.seed_generator
+                shape, 0, 1, #seed=self.seed_generator
             )
             random_tensor = tf.floor(random_tensor)
             return (x / keep_prob) * random_tensor
@@ -146,7 +146,7 @@ def mlp(x, hidden_units, dropout_rate):
 
       
 def Cct_Block_Functional(
-    image_size         = None,
+    img_size         = None,
     input_shape        = (224,224,1),
     num_heads          = 2 ,
     projection_dim     = 128,
@@ -161,15 +161,15 @@ def Cct_Block_Functional(
     inputs = tf.keras.layers.Input(input_shape)
 
 
-    if image_size is None :
-      image_size = input_shape[0]
+    if img_size is None :
+      img_size = input_shape[0]
 
     # Augment data.
     if preprocessing is None:
       preprocessing = tf.keras.Sequential(
       [
         tf.keras.layers.Rescaling(scale=1.0 / 255),
-        tf.keras.layers.RandomCrop(image_size, image_size),
+        tf.keras.layers.RandomCrop(img_size, img_size),
         tf.keras.layers.RandomFlip("vertical"),
       ],
       name="preprocessing",
@@ -246,7 +246,7 @@ def Cct_Block_Functional(
 
 # class Cct_Block(layers.Layer):
 #   def __init__(self, 
-#     image_size         = None,
+#     img_size         = None,
 #     input_shape        = (224,224,1),
 #     num_heads          = 2 ,
 #     projection_dim     = 128,
@@ -263,15 +263,15 @@ def Cct_Block_Functional(
 #     inputs = tf.keras.layers.Input(input_shape)
 
 
-#     if image_size is None :
-#       image_size = input_shape[0]
+#     if img_size is None :
+#       img_size = input_shape[0]
 
 #     # Augment data.
 #     if preprocessing is None:
 #       preprocessing = tf.keras.Sequential(
 #       [
 #         layers.Rescaling(scale=1.0 / 255),
-#         layers.RandomCrop(image_size, image_size),
+#         layers.RandomCrop(img_size, img_size),
 #         layers.RandomFlip("vertical"),
 #       ],
 #       name="preprocessing",
@@ -350,7 +350,7 @@ def Cct_Block_Functional(
 #     return self.cctBlock(images)
   
 # def build_cct_multiModal(
-#     image_size         = None,
+#     img_size         = None,
 #     input_shape        = (224,224,1),
 #     num_heads          = 2 ,
 #     projection_dim     = 128,
@@ -376,7 +376,7 @@ def Cct_Block_Functional(
 #   # print(cct_input_shape)
   
 #   Cct = Cct_Block_Functional(
-#     image_size         = image_size,
+#     img_size         = img_size,
 #     input_shape        = cct_input_shape,
 #     num_heads          = num_heads ,
 #     projection_dim     = projection_dim,

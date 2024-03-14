@@ -360,7 +360,9 @@ class R2(RegressionMetrics):
     if self.classId is not None:
       size = tf.cast(len(y_pred),'float32')
     else:
-      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],'float32')
+      # n = y_pred.shape[0]*y_pred.shape[1]
+      n  = tf.reduce_sum(tf.cast(tf.math.equal(y_pred,y_pred),'float32'))
+      size = tf.cast(n,'float32')
     self.size.assign_add(size)   
     self.yTrue.assign_add(yTrue)   
     self.yTrue2.assign_add(yTrue2)   
