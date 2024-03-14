@@ -153,20 +153,21 @@ class ModelInstantier():
         pickle.dump(savedConfig, f1)
     
 def reinstatiateOptim(optimizer):
-  optiConfig = optimizer.get_config()
+  
   if type(optimizer)!=str:
-    optiConfig = optimizer.get_config()
-    if type(optiConfig['learning_rate']) == dict:
-      if optiConfig['learning_rate']['class_name'] == 'LRScheduleDivbySteps':
-        optiConfig['learning_rate'] = LRScheduleDivbySteps(**optiConfig['learning_rate']['config'])
-    if optiConfig['name'] == 'Adam':
-      optimizer = tf.keras.optimizers.Adam(
-              learning_rate= optiConfig['learning_rate'],
-              weight_decay=optiConfig['weight_decay']
-            )
-    if optiConfig['name'] == 'AdamW':
-      optimizer = tf.keras.optimizers.AdamW(
-              learning_rate= optiConfig['learning_rate'],
-              weight_decay=optiConfig['weight_decay']
-            )
-  return optimizer
+    # optiConfig = optimizer.get_config()
+    # if type(optiConfig['learning_rate']) == dict:
+    #   if optiConfig['learning_rate']['class_name'] == 'LRScheduleDivbySteps':
+    #     optiConfig['learning_rate'] = LRScheduleDivbySteps(**optiConfig['learning_rate']['config'])
+    # if optiConfig['name'] == 'Adam':
+    #   optimizer = tf.keras.optimizers.Adam(
+    #           learning_rate= optiConfig['learning_rate'],
+    #           weight_decay=optiConfig['weight_decay']
+    #         )
+    # if optiConfig['name'] == 'AdamW':
+    #   optimizer = tf.keras.optimizers.AdamW(
+    #           learning_rate= optiConfig['learning_rate'],
+    #           weight_decay=optiConfig['weight_decay']
+    #         )
+    optimizer = optimizer.from_config(optimizer.get_config())
+  return 
