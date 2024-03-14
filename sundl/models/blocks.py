@@ -185,18 +185,27 @@ def Cct_Block_Functional(
           # print(chanIdx, input_shape[0])
           channels.append(preprocessing(inputs[:,chanIdx]))
         # print('OK')
-        augmented = tf.stack(channels, axis=1)
-        # print(augmented.shape)
+        preproc_input = tf.stack(channels, axis=1)
+        # print(preproc_input.shape)
       else:
-        inputs = tf.transpose(inputs, [0, 4, 2, 3, 1])
-        inputs = inputs[:,0]
-        print('shape before preprocessing: ' , inputs.shape)
-        augmented = preprocessing(inputs)
-        augmented = tf.expand_dims(augmented, axis=1)
-        augmented = tf.transpose(augmented, [0, 4, 2, 3, 1])
-        print('preproc final shape : ' , augmented.shape)
+        # inputs = tf.transpose(inputs, [0, 4, 2, 3, 1])
+        # permutIdxs = [0, 4, 2, 3, 1]
+        permutIdxs = [4, 2, 3, 1]
+        preproc_input = tf.keras.layers.Permute(permutIdxs)(inputs)
+
+        preproc_input = preproc_input[:,0]
+        print('shape before preprocessing: ' , preproc_input.shape)
+        preproc_input = preprocessing(preproc_input)
+        
+        # preproc_input = tf.expand_dims(preproc_input, axis=1)
+        
+        preproc_input = tf.keras.layers.Reshape([1]+list(preproc_input.shape[1:]))(preproc_input)
+        
+        # preproc_input = tf.transpose(preproc_input, [0, 4, 2, 3, 1])
+        preproc_input = tf.keras.layers.Permute(permutIdxs)(preproc_input)
+        print('preproc final shape : ' , preproc_input.shape)
     else:
-      augmented = preprocessing(inputs)
+      preproc_input = preprocessing(inputs)
 
     # Encode patches.
     if tokenizer_config is None:
@@ -207,10 +216,10 @@ def Cct_Block_Functional(
     if cross_channel_attention and len(input_shape) > 3:
       chanPatches = []
       for chanIdx in range(input_shape[0]):
-        chanPatches.append(cct_tokenizer(augmented[:,chanIdx]))
+        chanPatches.append(cct_tokenizer(preproc_input[:,chanIdx]))
       encoded_patches = tf.keras.layers.Concatenate(axis=1)(chanPatches)
     else:
-      encoded_patches = cct_tokenizer(augmented)
+      encoded_patches = cct_tokenizer(preproc_input)
     
     # Apply positional embedding.
     if cct_tokenizer.positional_emb:
@@ -295,10 +304,10 @@ def Cct_Block_Functional(
 #         # print(chanIdx, input_shape[0])
 #         channels.append(preprocessing(inputs[:,chanIdx]))
 #       # print('OK')
-#       augmented = tf.stack(channels, axis=1)
-#       # print(augmented.shape)
+#       preproc_input = tf.stack(channels, axis=1)
+#       # print(preproc_input.shape)
 #     else:
-#       augmented = preprocessing(inputs)
+#       preproc_input = preprocessing(inputs)
 
 #     # Encode patches.
 #     if tokenizer_config is None:
@@ -309,10 +318,10 @@ def Cct_Block_Functional(
 #     if cross_channel_attention and len(input_shape) > 3:
 #       chanPatches = []
 #       for chanIdx in range(input_shape[0]):
-#         chanPatches.append(cct_tokenizer(augmented[:,chanIdx]))
+#         chanPatches.append(cct_tokenizer(preproc_input[:,chanIdx]))
 #       encoded_patches = tf.keras.layers.Concatenate(axis=1)(chanPatches)
 #     else:
-#       encoded_patches = cct_tokenizer(augmented)
+#       encoded_patches = cct_tokenizer(preproc_input)
     
 #     # Apply positional embedding.
 #     if cct_tokenizer.positional_emb:
