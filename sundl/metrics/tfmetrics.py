@@ -356,7 +356,8 @@ class R2(RegressionMetrics):
       yPred = tf.reduce_sum(y_pred[:,self.classId])
       yTrue2 = tf.reduce_sum(tf.square(y_true[:,self.classId]))
       yPred2 = tf.reduce_sum(tf.square(y_pred[:,self.classId]))
-      prod = tf.reduce_sum(y_true[:self.classId] * y_pred[:,self.classId] )
+      # prod = tf.reduce_sum(y_true[:self.classId] * y_pred[:,self.classId] )
+      prod = tf.reduce_sum(tf.math.multiply(y_true[:self.classId],y_pred[:,self.classId])) 
     if self.classId is not None:
       size = tf.cast(len(y_pred),'float32')
     else:

@@ -168,6 +168,6 @@ def reinstatiateOptim(optimizer):
     #   optimizer = tf.keras.optimizers.AdamW(
     #           learning_rate= optiConfig['learning_rate'],
     #           weight_decay=optiConfig['weight_decay']
-    #         )
+    # )
     optimizer = optimizer.from_config(optimizer.get_config())
   return optimizer
