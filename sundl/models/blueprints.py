@@ -435,7 +435,7 @@ def build_cct_multiModal(
     cross_channel_attention = cross_channel_attention)
   
   if scalarFeaturesSize is not None:
-    image = tf.keras.layers.Input(shape=(img_size[0], img_size[1], img_size[2]), name='image')
+    image = tf.keras.layers.Input(shape=input_shape, name='image')
     scalar_input =  tf.keras.layers.Input(shape=(scalarFeaturesSize), name='scalars')
   else:
     image = tf.keras.layers.Input(input_shape)
