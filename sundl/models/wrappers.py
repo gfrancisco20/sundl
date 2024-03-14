@@ -170,4 +170,4 @@ def reinstatiateOptim(optimizer):
     #           weight_decay=optiConfig['weight_decay']
     #         )
     optimizer = optimizer.from_config(optimizer.get_config())
-  return 
+  return optimizer
