@@ -192,18 +192,12 @@ def Cct_Block_Functional(
         # permutIdxs = [0, 4, 2, 3, 1]
         permutIdxs = [4, 2, 3, 1]
         preproc_input = tf.keras.layers.Permute(permutIdxs)(inputs)
-
         preproc_input = preproc_input[:,0]
-        print('shape before preprocessing: ' , preproc_input.shape)
         preproc_input = preprocessing(preproc_input)
-        
         # preproc_input = tf.expand_dims(preproc_input, axis=1)
-        
         preproc_input = tf.keras.layers.Reshape([1]+list(preproc_input.shape[1:]))(preproc_input)
-        
         # preproc_input = tf.transpose(preproc_input, [0, 4, 2, 3, 1])
         preproc_input = tf.keras.layers.Permute(permutIdxs)(preproc_input)
-        print('preproc final shape : ' , preproc_input.shape)
     else:
       preproc_input = preprocessing(inputs)
 

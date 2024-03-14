@@ -436,7 +436,6 @@ def build_cct_multiModal(
     preprocessing = preprocessing,
     preprocessChannelsIndependantly = preprocessChannelsIndependantly,
     cross_channel_attention = cross_channel_attention)
-  print('Constructed')
   
   if scalarFeaturesSize is not None:
     image = tf.keras.layers.Input(shape=input_shape, name='image')
@@ -445,12 +444,9 @@ def build_cct_multiModal(
     image = tf.keras.layers.Input(input_shape)
   
   if cross_channel_cct:
-    print('STaRRT')
     x = tf.keras.layers.TimeDistributed(Cct)(image)
     x  = tf.reshape(x, [-1, x.shape[1]*x.shape[2]])
   else:
-    print('Before Call')
-    print('image  shape', image.shape)
     x = Cct(image)
     
   if scalarFeaturesSize is not None:
