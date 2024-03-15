@@ -301,6 +301,7 @@ def build_pretrained_model(
     scalarAgregation = 'feature', # @['feature', 'baseline']
     compileModel = True,
     labelSize = None, # for regression oonly, for classification use num_classes
+    preprocessing = None,
     **kwargs
 ):
 
@@ -309,11 +310,16 @@ def build_pretrained_model(
     scalar_input =  tf.keras.layers.Input(shape=(scalarFeaturesSize), name='scalars')
   else:
     image = tf.keras.layers.Input(shape=(img_size[0], img_size[1], img_size[2]), name='image')
+    
+  if preprocessing is not None:
+    preprocc_image = preprocessing(image)
+  else:
+    preprocc_image = image
 
   if pretainedWeight:
-    model = tfModel(include_top=False, input_tensor=image, weights="imagenet",**kwargs)
+    model = tfModel(include_top=False, input_tensor=preprocc_image, weights="imagenet",**kwargs)
   else:
-    model = tfModel(include_top=False, input_tensor=image, weights=None,**kwargs)
+    model = tfModel(include_top=False, input_tensor=preprocc_image, weights=None,**kwargs)
     
   # Freeze the pretrained weights
   model.trainable = not pretainedWeight
