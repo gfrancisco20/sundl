@@ -147,13 +147,19 @@ def build_pretrained_PatchCNN(
     compileModel = True,
     feature_reduction = None,
     lastTfConv = 'top_conv',
+    preprocessing = None,
     **kwargs
 ):
 
   input = tf.keras.layers.Input(shape=(img_size[0], img_size[1], img_size[2]), name='input')
+  
+  if preprocessing is not None:
+    x = preprocessing(input)
+  else:
+    x = input
 
   #print('IN' , input.shape)
-  patches = tf.image.extract_patches(input,
+  patches = tf.image.extract_patches(x,
                                      sizes   = [1, patches_size[0], patches_size[1], 1],
                                      strides = [1, patches_size[0], patches_size[1], 1],
                                      rates   = [1, 1, 1, 1],
