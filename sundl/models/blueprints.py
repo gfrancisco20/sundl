@@ -125,6 +125,12 @@ def __build_pretrained_innerPatch(
           output = tf.keras.layers.Dense(num_classes-1, activation="sigmoid", name="pred")(output)
     patch_model = tf.keras.Model(input, output, name="Patch")
     #patch_output = output
+    
+    def compute_output_shape(self, input_shape): 
+      return self.output.shape
+    import types
+    patch_model.compute_output_shape = types.MethodType(compute_output_shape, patch_model)
+        
   return patch_model
 
 def build_pretrained_PatchCNN(
@@ -159,33 +165,52 @@ def build_pretrained_PatchCNN(
     x = input
 
   #print('IN' , input.shape)
-  patches = tf.image.extract_patches(x,
+  # tf 2.16 compatibility
+  class Extract_patches_Layer(tf.keras.layers.Layer):
+    def __init__(self):
+      super().__init__()
+    def call(self, x):
+        return tf.image.extract_patches(x,
                                      sizes   = [1, patches_size[0], patches_size[1], 1],
                                      strides = [1, patches_size[0], patches_size[1], 1],
                                      rates   = [1, 1, 1, 1],
                                      padding='VALID'
                                      )
+    def compute_output_shape(self, input_shape):
+        nRow = input_shape[1] // patches_size[0]
+        nCol = input_shape[2] // patches_size[1]
+        return (input_shape[0], nRow, nCol, patches_size[0]*patches_size[1]*input_shape[3])
+
+     
+  patches = Extract_patches_Layer()(x)
+  # patches = tf.image.extract_patches(x,
+  #                                    sizes   = [1, patches_size[0], patches_size[1], 1],
+  #                                    strides = [1, patches_size[0], patches_size[1], 1],
+  #                                    rates   = [1, 1, 1, 1],
+  #                                    padding='VALID'
+  #                                    )
   if includeInterPatches:
-    interPatches = tf.image.extract_patches(tf.keras.layers.Cropping2D(cropping=((0, patches_size[0]//2)))(input),
-                                     sizes   = [1, patches_size[0], patches_size[1], 1],
-                                     strides = [1, patches_size[0], patches_size[1], 1],
-                                     rates   = [1, 1, 1, 1],
-                                     padding='VALID'
-                                     )
+    interPatches =  Extract_patches_Layer()(tf.keras.layers.Cropping2D(cropping=((0, patches_size[0]//2)))(x))
+    # interPatches = tf.image.extract_patches(tf.keras.layers.Cropping2D(cropping=((0, patches_size[0]//2)))(x),
+    #                                  sizes   = [1, patches_size[0], patches_size[1], 1],
+    #                                  strides = [1, patches_size[0], patches_size[1], 1],
+    #                                  rates   = [1, 1, 1, 1],
+    #                                  padding='VALID'
+    #                                  )
     print('interPatches', interPatches.shape)
   #print('EXT OUTPUT' , patches.shape)
   if shared_patcher == 'all':
-    patches = tf.reshape(patches,shape=(-1,
+    patches = tf.keras.layers.Reshape(target_shape = ( #tf.reshape(patches,shape=(-1,
                                         patches.shape[1]*patches.shape[2],
                                         patches_size[0],
                                         patches_size[1],
-                                        patches_size[2]))
+                                        patches_size[2])) (patches)
     if includeInterPatches:
-      interPatches = tf.reshape(interPatches,shape=(-1,
+      interPatches = tf.keras.layers.Reshape(target_shape = ( #tf.reshape(interPatches,shape=(-1,
                                         interPatches.shape[1]*interPatches.shape[2],
                                         patches_size[0],
                                         patches_size[1],
-                                        patches_size[2]))
+                                        patches_size[2])) (interPatches)
       print('reshaped interPatches', interPatches.shape)
       patches = tf.keras.layers.Concatenate(axis=1)([patches,interPatches])
       print('final patches', patches.shape)
@@ -214,7 +239,8 @@ def build_pretrained_PatchCNN(
     for rIdx, row in enumerate(range(patches.shape[1])):
       for cIdx, col in enumerate(range(patches.shape[2])):
         #patches_idxs.append((rIdx,cIdx))
-        patch = tf.reshape(patches[:,rIdx,cIdx,:],shape=(-1,patches_size[0],patches_size[1],patches_size[2]))
+        # patch = tf.reshape(patches[:,rIdx,cIdx,:],shape=(-1,patches_size[0],patches_size[1],patches_size[2]))
+        patch =  tf.keras.layers.Reshape(target_shape = (patches_size[0],patches_size[1],patches_size[2]))(patches[:,rIdx,cIdx,:])
         #print('RS OUUTPUT' , patch.shape)
         patch_model = __build_pretrained_innerPatch(
           num_classes,

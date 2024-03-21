@@ -286,12 +286,12 @@ def builDS_image_feature(
   actualWeights = {}
   if weightByClass:
     if len(labels.shape) < 2:
-      labelWeightingCol = labels
+      labelWeightingCol = np.copy(labels)
     else:
       if weightOffLabIdx is None:
-        labelWeightingCol = labels[:,0]
+        labelWeightingCol = np.copy(labels[:,0])
       else:
-        labelWeightingCol = labels[:,weightOffLabIdx]
+        labelWeightingCol = np.copy(labels[:,weightOffLabIdx])
     print('labelCol', labelCol)
     print('classTresholds', classTresholds)
     weights = np.ones(len(labelWeightingCol))

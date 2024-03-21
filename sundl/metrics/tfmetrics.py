@@ -273,10 +273,14 @@ class RegressionMetrics(tf.keras.metrics.Metric):#,ABC):
   #   return self.compute_metric(y_true, y_pred)
 
 def notnull(x):
-  if x==0:
-    return epsilon # tf.keras.backend.epsilon()
-  else:
-    return x
+  # isNull = tf.math.reduce_sum(tf.cast(tf.math.equal(x,0.0),'float32'))
+  isNull = tf.cast(tf.math.equal(x,0.0),'float32')
+  return isNull * epsilon + (1.0-isNull) * x
+  # if x==0:
+  #   return epsilon # tf.keras.backend.epsilon()
+  # else:
+  #   return x
+  
 
 class MAE(RegressionMetrics):
   def __init__(self, y_transform = None, name = None, labelDecoder = None,classId = None):
