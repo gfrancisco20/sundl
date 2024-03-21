@@ -84,7 +84,7 @@ def builDS_image_feature(
   batch_size,
   dfTimeseries,
   samples, # sample dates
-  shiftSampByLabOff = False,
+  shiftSamplesByLabelOff = False,
   shiftTsByLabOff   = True, # DEP
   ts_off_label_hours= 24*np.arange(0.5,6.5,0.5),
   ts_off_scalar_hours= None, 
@@ -157,7 +157,7 @@ def builDS_image_feature(
     while the labels values refer to [D ; D + windowSize[,
     default to true
     
-  shiftSampByLabOff : bool, optional
+  shiftSamplesByLabelOff : bool, optional
     shift the 'sample' dates of 'ts_off_label_hours' hours, 
     needed if the sample dates where computed at feature level rather than featur,
     default to true
@@ -183,13 +183,7 @@ def builDS_image_feature(
     pathDir = pathDir.as_posix()
 
 
-  
-  if samples is not None:
-    if shiftSampByLabOff:
-      print('Samples shiiftng done')
-      # use when the balance of the sample is made on the actual window values, not their foreccast-labels
-      samples.index = samples.index + pd.DateOffset(hours= -ts_off_label_hours[0])
-
+    
   # offseting
   # if shiftTsByLabOff:
   for offLabel in ts_off_label_hours:
@@ -213,11 +207,16 @@ def builDS_image_feature(
     startIdx = int(np.max(np.abs(ts_off_scalar_hours))/2)
   else:
     startIdx = 0
+    
   dfTimeseries = dfTimeseries[startIdx : -int(np.max(ts_off_label_hours)/2)]  
   dfTimeseries.dropna(subset=[f'label_{offLabel}' for offLabel in ts_off_label_hours])
       
   # fiiltering on sample dates
   if samples is not None:
+    if shiftSamplesByLabelOff:
+      print('Samples shiiftng done')
+      # use when the balance of the sample is made on the actual window values, not their foreccast-labels
+      samples.index = samples.index + pd.DateOffset(hours= -ts_off_label_hours[0])
     dfTimeseries = dfTimeseries[dfTimeseries.index.isin(samples.index)]
 
   if not cache and shuffle:
@@ -419,7 +418,7 @@ def builDS_image(pathDir,
   dfTimeseries,
   samples, # sample dates
   epochs,
-  shiftSampByLabOff = True,
+  shiftSamplesByLabelOff = True,
   shiftTsByLabOff   = True,
   ts_off_label_hours= 24,
   labelCol          = 'label',
@@ -471,7 +470,7 @@ def builDS_image(pathDir,
     while the labels values refer to [D ; D + windowSize[,
     default to true
     
-  shiftSampByLabOff : bool, optional
+  shiftSamplesByLabelOff : bool, optional
     shift the 'sample' dates of 'ts_off_label_hours' hours, 
     needed if the sample dates where computed at feature level rather than featur,
     default to true
@@ -505,7 +504,7 @@ def builDS_image(pathDir,
   dfTimeseries = dfTimeseries.dropna()
   # fiiltering on sample dates
   if samples is not None:
-    if shiftSampByLabOff:
+    if shiftSamplesByLabelOff:
       print('Samples shiiftng done')
       # because the balance of the sample was made on the actual window values, not their foreccast-labels
       samples.index = samples.index + pd.DateOffset(hours= -ts_off_label_hours)

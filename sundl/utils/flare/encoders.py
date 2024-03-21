@@ -133,3 +133,5 @@ totehDecoders[144]            = lambda flux : (tf.math.exp(flux) - 1) / tf.math.
 toteh_C_metrics_decoders[144] = lambda flux : tf.cast(totehDecoders[72](flux)>=totehTresh[144]['C'][0], dtype = 'float32')
 toteh_M_metrics_decoders[144] = lambda flux : tf.cast(totehDecoders[72](flux)>=totehTresh[144]['M'][0], dtype = 'float32')
 toteh_X_metrics_decoders[144] = lambda flux : tf.cast(totehDecoders[72](flux)>=totehTresh[144]['X'][0], dtype = 'float32')
+
+

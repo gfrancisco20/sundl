@@ -25,7 +25,8 @@ def drive2local(files2transfer
     if isinstance(sourceDir,str): sourceDir = Path(sourceDir)
     if isinstance(destDir,str): destDir = Path(destDir)
     if not destDir.exists():
-      os.mkdir(destDir.as_posix())
+      # os.mkdir(destDir.as_posix())
+      os.makedirs(destDir, exist_ok=True)
       duration = time.time()
       for fn in listOfFilename:
         zipfile = False
@@ -35,15 +36,16 @@ def drive2local(files2transfer
           zipfile = True
         elif fn[-3:] == 'zip':
           zipfile = True
-        shutil.copy((sourceDir/fn).as_posix(), (destDir/fn).as_posix())
+        destPath = destDir/fn.split('/')[-1]
+        shutil.copy((sourceDir/fn).as_posix(), destPath.as_posix())
         duration = time.time()-duration
         print(f'\n{typeFiles} -- {fn} transfered in : {duration//60:.0f} m {duration%60:.2f} s')
 
         if zipfile:
           duration = time.time()
 
-          shutil.unpack_archive((destDir/fn).as_posix(), destDir, "zip")
-          os.remove((destDir/fn).as_posix())
+          shutil.unpack_archive(destPath.as_posix(), destDir, "zip")
+          os.remove(destPath.as_posix())
 
           duration = time.time()-duration
           print(f'    {fn} unzipped in : {duration//60:.0f} m {duration%60:.2f} s')
