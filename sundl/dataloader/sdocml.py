@@ -25,7 +25,7 @@ def configure_for_performance(ds, batch_size, shuffle_buffer_size=1000, shuffle 
 def fileId2FnPattern(fileId,pathDir,channels):
   for idx,chan in enumerate(channels):
     if type(pathDir) == pathlib.PosixPath: pathDir = pathDir.as_posix()
-    regexp = tf.strings.join([pathDir,'/*/',fileId,'_',str(chan),'.jpg'])#.numpy()
+    regexp = tf.strings.join([pathDir,'/*/',fileId,'_',str(chan),'.*'])#.numpy()
     # pth = sorted(glob(regexp))[0] # --> not supported by tf map
     if idx==0:
       #res = regexp
@@ -285,10 +285,13 @@ def builDS_image_feature(
   # if weightByClass:
   actualWeights = {}
   if weightByClass:
-    if weightOffLabIdx is None:
-      labelWeightingCol = labels[:,0]
+    if len(labels.shape) < 2:
+      labelWeightingCol = labels
     else:
-      labelWeightingCol = labels[:,weightOffLabIdx]
+      if weightOffLabIdx is None:
+        labelWeightingCol = labels[:,0]
+      else:
+        labelWeightingCol = labels[:,weightOffLabIdx]
     print('labelCol', labelCol)
     print('classTresholds', classTresholds)
     weights = np.ones(len(labelWeightingCol))
