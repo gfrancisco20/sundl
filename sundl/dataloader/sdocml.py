@@ -565,7 +565,6 @@ def get_anomalies_dates(anomaliesGradeFolder, wavelengths, qualityTreshold = 1):
   
   anomaliesDates = {}
   for idx, w in enumerate(wavelengths):
-    print(w)
     anommaliesPath = anomaliesGradeFolder/f'{w}_anomalies_notes.csv'
     anomaliesDates[w] = read_Dataframe_With_Dates(anommaliesPath)
     anomaliesDates[w] = anomaliesDates[w][anomaliesDates[w]['grade'] < qualityTreshold]
