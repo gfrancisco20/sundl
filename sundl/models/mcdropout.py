@@ -14,14 +14,15 @@ def nnMcDropout(model, dropout_rate):
     
     conf = model.get_config()
     # Set dropout rate and freeze all layers but rate
+    conf['trainable'] = False
     for layer in conf['layers']:
       if layer["class_name"]=="Dropout":
         layer["config"]["rate"] = dropout_rate
         layer["config"]["trainable"] = True
-      elif "dropout" in layer["config"].keys():
-        # print('Drop-wth-layer')
-        layer["config"]["dropout"] = dropout_rate
-        layer["config"]["trainable"] = True
+      # elif "dropout" in layer["config"].keys():
+      #   # print('Drop-wth-layer')
+      #   layer["config"]["dropout"] = dropout_rate
+      #   layer["config"]["trainable"] = True
       else:
         if "trainable" in layer["config"].keys():
           layer["config"]["trainable"] = False
