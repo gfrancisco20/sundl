@@ -576,7 +576,7 @@ def get_anomalies_dates(anomaliesGradeFolder, wavelengths, qualityTreshold = 1):
 
   dates2exclude = np.sort(np.unique(dates2exclude))
   
-  return
+  return dates2exclude
 
 # def builDS_image(pathDir,
 #   channels,
