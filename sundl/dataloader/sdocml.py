@@ -57,11 +57,9 @@ def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False):
       res = tf.concat([res,img],axis=-1)
   if isGray:
     if sepPosNeg:
-      pos = np.copy(res.numpy())
-      pos[pos<=127] = 0
-      neg = np.copy(res.numpy())
-      neg[neg>=127] = 0
-      res =  tf.concat([neg,res.numpy(),pos],axis=-1)
+      pos = tf.math.maximum(res,127)
+      neg = tf.math.minimum(res,127)
+      res =  tf.concat([neg,res,pos],axis=-1)
     elif gray2RGB:
       res = tf.repeat(res,repeats=3,axis=-1)
   return res
