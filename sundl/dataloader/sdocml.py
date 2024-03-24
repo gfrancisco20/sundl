@@ -40,7 +40,7 @@ def fileId2FnPattern(fileId,pathDir,channels):
       res = tf.concat([res,[regexp]],axis=-1)
   return res
 
-def parse_image(file_path,pathDir, gray2RGB, isGray = False):
+def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False):
   # Load the raw data from the file as a string
   for idx in range(file_path.shape[0]):
     img = tf.io.read_file(file_path[idx])
@@ -55,7 +55,14 @@ def parse_image(file_path,pathDir, gray2RGB, isGray = False):
       res = img
     else:
       res = tf.concat([res,img],axis=-1)
-  if gray2RGB and isGray:
+  if isGray:
+    if sepPosNeg:
+      pos = np.copy(res.numpy())
+      pos[pos<=127] = 0
+      neg = np.copy(res.numpy())
+      neg[neg>=127] = 0
+      res =  tf.concat([neg,res.numpy(),pos],axis=-1)
+    elif gray2RGB:
       res = tf.repeat(res,repeats=3,axis=-1)
   return res
 
@@ -74,7 +81,8 @@ def parse_image_normalize_tfMode(file_path, gray2RGB, means, stds):
       res = img
     else:
       res = tf.concat([res,img],axis=-1)
-  if gray2RGB and res.shape[-1]==1:
+  if  res.shape[-1]==1:
+    if gray2RGB :
       res = tf.repeat(res,repeats=3,axis=-1)
   return res
 
@@ -85,7 +93,6 @@ def builDS_image_feature(
   dfTimeseries,
   samples, # sample dates
   shiftSamplesByLabelOff = False,
-  shiftTsByLabOff   = True, # DEP
   ts_off_label_hours= 24*np.arange(0.5,6.5,0.5),
   ts_off_scalar_hours= None, 
   labelCol          = 'sw_v',
@@ -98,8 +105,7 @@ def builDS_image_feature(
   crop_coord        = None,
   num_classes       = 2,
   gray2RGB          = True,
-  chnWiseNormalize  = False,
-  pathNormFile      = None,
+  sepPosNeg         = False,
   shape3d           = False,
   regression        = False,
   labelEncoder      = None,
@@ -120,7 +126,7 @@ def builDS_image_feature(
                        'X':0.20},
   strictly_pos_label = True,
   dates2exclude = None,
-**kwargs # bacckward compt
+  **kwargs # bacckward compt
 ):
   if labelEncoder is not None and encoderIsTf:
     temp = labelEncoder
@@ -337,21 +343,7 @@ def builDS_image_feature(
   im = np.array(Image.open(filenames[0][0]))
   isGray = True if len(im.shape)==2 else False
   
-  if chnWiseNormalize:
-    # rmv?
-    duration = time.time()
-    filenames_ds = tf.data.Dataset.from_tensor_slices(filenames)
-    pixstat = pd.read_csv(pathNormFile).set_index('channel')
-    tfMeans = tf.constant([pixstat.loc[str(channel)]['mean_wg'] for channel in channels], dtype='float32')
-    tfStd = tf.constant([pixstat.loc[str(channel)]['std_wg'] for channel in channels], dtype='float32')
-    @tf.autograph.experimental.do_not_convert
-    def tf_normaliser(x):
-      return parse_image_normalize_tfMode(x, gray2RGB, tfMeans, tfStd)
-    images_ds = filenames_ds.map(tf_normaliser, num_parallel_calls=AUTOTUNE)
-    duration = time.time() - duration
-    print(f'Normalisation took {duration//60:0>2.0f}m{duration%60:0>2.0f}s during dataset instantiation')
-  else:
-    images_ds = filenames_ds.map(lambda x: parse_image(x,pathDir,gray2RGB, isGray), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
+  images_ds = filenames_ds.map(lambda x: parse_image(x,pathDir,gray2RGB, isGray, sepPosNeg), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
   
   if shape3d:
     images_ds = images_ds.map(lambda x: tf.expand_dims(tf.transpose(x,[2,0,1]), axis=-1),num_parallel_calls=AUTOTUNE) # if no prior batching

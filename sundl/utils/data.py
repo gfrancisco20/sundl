@@ -64,3 +64,4 @@ def read_Dataframe_With_Dates(pathCsvDf, tsColumns = ['timestamp'], tsFmt = '%Y-
   if maxDate is not None:
     df = df[df.index <= maxDate]
   return df
+
