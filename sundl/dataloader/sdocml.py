@@ -479,7 +479,7 @@ def buildDS_persistant_MTS(
 
   # filtering on sample dates
   if samples is not None:
-    if shiftSamplesByLabelOff:
+    if shiftSamplesByLabelOff: 
       # because the balance of the sample was made on the actual window values, not their foreccast-labels
       samples.index = samples.index + pd.DateOffset(hours= -ts_off_label_hours[0])
     dfTimeseries = dfTimeseries[dfTimeseries.index.isin(samples.index)]

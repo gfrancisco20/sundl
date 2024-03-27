@@ -98,7 +98,7 @@ SCs = {'all':(start_SC_22,end_SC_24), # 3 SC average
        '22': (start_SC_22,end_SC_22), 
        '23': (end_SC_22,end_SC_23), 
        '24': (end_SC_23,end_SC_24),
-       'peak24': (datetime.datetime(2010,12,1), datetime.datetime(2018,1,1)),
+       'peak24': (datetime.datetime(2010,12,1), datetime.datetime(2018,12,31)),
        'SC_25_Asc': (start_SC_25_Asc, end_SC_25_Asc)
        }
 
