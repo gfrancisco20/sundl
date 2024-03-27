@@ -36,7 +36,8 @@ def build_persistant_model(
       output = inputs
       if not regression:
         output = tf.cast(output, dtype='uint8')
-        output = tf.one_hot(output,num_classes)
+        if output.shape[1] != num_classes:
+          output = tf.one_hot(output,num_classes)
       # output = tf.cast(output, dtype='float32')
       # output = output >=1
       # output = tf.cast(output, dtype=inputs.dtype)
