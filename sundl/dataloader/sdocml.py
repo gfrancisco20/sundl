@@ -524,9 +524,13 @@ def buildDS_persistant_MTS(
   # encoding
   labels = dfTimeseries[[f'label_{offLabel}'  for offLabel in ts_off_label_hours]].values
   inputs = dfTimeseries[[f'history_{offhistory}'  for offhistory in ts_off_history_hours]].values
+  
+  # if labelEncoder is not None:
+  #   labels = labelEncoder(labels)
+  #   inputs = labelEncoder(inputs)
   if labelEncoder is not None:
-    labels = labelEncoder(labels)
-    inputs = labelEncoder(inputs)
+    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = 'float32')# labels.map(lambda x: labelEncoder(x))
+    inputs = np.fromiter((labelEncoder(x) for x in inputs), dtype = 'float32')
 
   # tensorflow ds
   labels_ds = tf.data.Dataset.from_tensor_slices(labels)
