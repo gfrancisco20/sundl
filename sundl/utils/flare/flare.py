@@ -90,7 +90,7 @@ def class_stats(
 start_SC_22 = datetime.datetime(1986,1,1)
 end_SC_22 = datetime.datetime(1996,8,1)
 end_SC_23 = datetime.datetime(2008,12,1)
-end_SC_24 = datetime.datetime(2019,4,1)
+end_SC_24 = datetime.datetime(2019,12,1)
 start_SC_25_Asc = datetime.datetime(2020,1,1)
 end_SC_25_Asc = datetime.datetime(2023,5,1)
 
@@ -98,6 +98,7 @@ SCs = {'all':(start_SC_22,end_SC_24), # 3 SC average
        '22': (start_SC_22,end_SC_22), 
        '23': (end_SC_22,end_SC_23), 
        '24': (end_SC_23,end_SC_24),
+       '24_sdo' : (datetime.datetime(2010,5,1),end_SC_24),
        'peak24': (datetime.datetime(2010,12,1), datetime.datetime(2018,12,31)),
        'SC_25_Asc': (start_SC_25_Asc, end_SC_25_Asc)
        }
