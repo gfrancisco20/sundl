@@ -167,38 +167,36 @@ def build_pretrained_PatchCNN(
     x = input
 
   #print('IN' , input.shape)
-  # tf 2.16 compatibility
-  class Extract_patches_Layer(tf.keras.layers.Layer):
-    def __init__(self):
-      super().__init__()
-    def call(self, x):
-        return tf.image.extract_patches(x,
-                                     sizes   = [1, patches_size[0], patches_size[1], 1],
-                                     strides = [1, patches_size[0], patches_size[1], 1],
-                                     rates   = [1, 1, 1, 1],
-                                     padding='VALID'
-                                     )
-    def compute_output_shape(self, input_shape):
-        nRow = input_shape[1] // patches_size[0]
-        nCol = input_shape[2] // patches_size[1]
-        return (input_shape[0], nRow, nCol, patches_size[0]*patches_size[1]*input_shape[3])
-
-     
-  patches = Extract_patches_Layer()(x)
-  # patches = tf.image.extract_patches(x,
+  # backward compatibility
+  # class Extract_patches_Layer(tf.keras.layers.Layer):
+  #   def __init__(self):
+  #     super().__init__()
+  #   def call(self, x):
+  #       return tf.image.extract_patches(x,
   #                                    sizes   = [1, patches_size[0], patches_size[1], 1],
   #                                    strides = [1, patches_size[0], patches_size[1], 1],
   #                                    rates   = [1, 1, 1, 1],
   #                                    padding='VALID'
   #                                    )
+  #   def compute_output_shape(self, input_shape):
+  #       nRow = input_shape[1] // patches_size[0]
+  #       nCol = input_shape[2] // patches_size[1]
+  #       return (input_shape[0], nRow, nCol, patches_size[0]*patches_size[1]*input_shape[3])
+  # patches = Extract_patches_Layer()(x)
+  patches = tf.image.extract_patches(x,
+                                     sizes   = [1, patches_size[0], patches_size[1], 1],
+                                     strides = [1, patches_size[0], patches_size[1], 1],
+                                     rates   = [1, 1, 1, 1],
+                                     padding='VALID'
+                                     )
   if includeInterPatches:
-    interPatches =  Extract_patches_Layer()(tf.keras.layers.Cropping2D(cropping=((0, patches_size[0]//2)))(x))
-    # interPatches = tf.image.extract_patches(tf.keras.layers.Cropping2D(cropping=((0, patches_size[0]//2)))(x),
-    #                                  sizes   = [1, patches_size[0], patches_size[1], 1],
-    #                                  strides = [1, patches_size[0], patches_size[1], 1],
-    #                                  rates   = [1, 1, 1, 1],
-    #                                  padding='VALID'
-    #                                  )
+    # interPatches =  Extract_patches_Layer()(tf.keras.layers.Cropping2D(cropping=((0, patches_size[0]//2)))(x))
+    interPatches = tf.image.extract_patches(tf.keras.layers.Cropping2D(cropping=((0, patches_size[0]//2)))(x),
+                                     sizes   = [1, patches_size[0], patches_size[1], 1],
+                                     strides = [1, patches_size[0], patches_size[1], 1],
+                                     rates   = [1, 1, 1, 1],
+                                     padding='VALID'
+                                     )
     print('interPatches', interPatches.shape)
   #print('EXT OUTPUT' , patches.shape)
   if shared_patcher == 'all':
