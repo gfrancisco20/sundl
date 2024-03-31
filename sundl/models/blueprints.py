@@ -7,6 +7,21 @@ import tensorflow as tf
 from sundl.models.wrappers import reinstatiateOptim
 from sundl.models.blocks import Cct_Block_Functional
 
+class Extract_patches_Layer(tf.keras.layers.Layer):
+    def __init__(self):
+      super().__init__()
+    def call(self, x):
+        return tf.image.extract_patches(x,
+                                     sizes   = [1, 112, 112, 1],
+                                     strides = [1, 112, 112, 1],
+                                     rates   = [1, 1, 1, 1],
+                                     padding='VALID'
+                                     )
+    def compute_output_shape(self, input_shape):
+        nRow = 224 // 112
+        nCol = 448 // 112
+        return (input_shape[0], nRow, nCol, 112*112*input_shape[3])
+
 __all__ = ['build_pretrained_model',
            'build_pretrained_PatchCNN',
            'build_persistant_model'
