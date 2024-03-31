@@ -2,6 +2,7 @@
 Functions to instantiate tf.Dataset from the SDO Compact ML dataset (https://doi.org/10.5281/zenodo.10465437)
 """
 
+
 from glob import glob
 import pathlib
 import time
@@ -10,11 +11,9 @@ import pandas as pd
 import tensorflow as tf
 from PIL import Image
 from sundl.utils.data import read_Dataframe_With_Dates
-
-
-def configure_for_performance(ds, batch_size, shuffle_buffer_size=1000, shuffle = False, cache=True, prefetch=True, epochs = None):
+def configure_for_performance(ds, batch_size, shuffle_buffer_size=1000, shuffle = False, cache=True, prefetch=True, epochs = None, cachePath = ''):
   if cache:
-    ds = ds.cache()
+    ds = ds.cache(cachePath)
   if shuffle:
     ds = ds.shuffle(buffer_size=shuffle_buffer_size)
   ds = ds.batch(batch_size)
@@ -97,6 +96,7 @@ def builDS_image_feature(
   scalarCol         = None,
   prefetch          = True,
   cache             = True,
+  cachePath         = '', # keep string empty for ram caching
   shuffle           = True,
   uncachedShuffBuff = 1000,
   img_size          = None,
@@ -405,7 +405,7 @@ def builDS_image_feature(
     else:
       ds = tf.data.Dataset.zip((images_ds, labels_ds))
 
-  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch)
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath)
   dfTimeseries_updated = dfTimeseries[keeped].copy()
   return ds, missing_file_idx, missing_file_regexp, dfTimeseries_updated
 
