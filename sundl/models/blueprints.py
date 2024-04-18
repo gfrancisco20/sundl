@@ -519,7 +519,7 @@ def build_LSTM(input_shape, # (#timestems, #feature)
                compileModel = True,
                modelName = 'LSTM',
                preBatchNorm = True,
-               dropoutLstm = None,
+               dropoutLstm = 0.0,
                top_dropout_rate = None
                ):
   
