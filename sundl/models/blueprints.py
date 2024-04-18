@@ -508,3 +508,47 @@ def build_cct_multiModal(
   
   return model
 
+def build_LSTM(input_shape, # (#timestems, #feature)
+               output_shape = None,
+               lstm_units = [64],
+               loss="mae",
+               optimizer = 'adam',
+               metrics= None,
+               regression = True, # unused but needed  for fn prototype compatibility (of builDS from ModelInstantier class)
+               num_classes = 2,
+               compileModel = True,
+               modelName = 'LSTM',
+               preBatchNorm = True,
+               dropoutLstm = None,
+               top_dropout_rate = None
+               ):
+  
+  if output_shape is None:
+    if regression:
+      output_shape = 1
+    else:
+      output_shape = num_classes
+  inputs = tf.keras.layers.Input(shape=input_shape, name='scalars')
+  x = inputs
+  if preBatchNorm:
+    x = tf.keras.layers.BatchNormalization(name =  f'pre_bn')(x)
+  for idx,nUnit in enumerate(lstm_units):
+    if idx < len(lstm_units) - 1:
+      x = tf.keras.layers.LSTM(nUnit, return_sequences=True, name = f'lstm_{idx}',dropout = dropoutLstm)(x)
+    else:
+      x = tf.keras.layers.LSTM(nUnit, name = f'lstm_{idx}', dropout = dropoutLstm)(x)
+
+  if top_dropout_rate is not None: 
+    x = tf.keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
+  if regression:
+    output = tf.keras.layers.Dense(output_shape, name="pred")(x)
+  else:
+    output = tf.keras.layers.Dense(output_shape, activation="softmax", name="pred")(x)
+    
+  model = tf.keras.Model(inputs, output, name=modelName)
+  if compileModel:
+    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+    
+  return model
+  
+

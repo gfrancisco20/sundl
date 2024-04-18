@@ -1,5 +1,4 @@
 """
-Functions to instantiate tf.Dataset from the SDO Compact ML dataset (https://doi.org/10.5281/zenodo.10465437)
 """
 
 
@@ -571,6 +570,224 @@ def get_anomalies_dates(anomaliesGradeFolder, wavelengths, qualityTreshold = 1):
   dates2exclude = np.sort(np.unique(dates2exclude))
   
   return dates2exclude
+
+def builDS_ts_feature(
+  pathDir,
+  channels,
+  batch_size,
+  samples, # sample dates
+  dfTimeseries,
+  dfTimeseriesLabel = None, 
+  shiftSamplesByLabelOff = False,
+  ts_off_label_hours = 24*np.arange(0.5,6.5,0.5),
+  ts_off_scalar_hours = None, 
+  labelCol          = ['sw_v'],
+  scalarCol         = None,
+  prefetch          = True,
+  cache             = True,
+  cachePath         = '', # keep string empty for ram caching
+  shuffle           = True,
+  uncachedShuffBuff = 1000,
+  img_size          = None,
+  crop_coord        = None,
+  num_classes       = 2,
+  gray2RGB          = True,
+  sepPosNeg         = False,
+  shape3d           = False,
+  regression        = False,
+  labelEncoder      = None,
+  encoderIsTf       = True,
+  scalarEncoder     = None,
+  weightByClass     = False,
+  weightOffLabIdx   = 0,
+  # needed only if weightByClass is True, class are defined relatively to labelCol
+  classTresholds    = {'quiet': (0,1e-7), 
+                       'B':(1e-7,1e-6), 
+                       'C':(1e-6,1e-5), 
+                       'M':(1e-5,1e-4), 
+                       'X':(1e-4,np.inf)},
+  classWeights      = {'quiet': 0.20, 
+                       'B':0.20, 
+                       'C':0.20, 
+                       'M':0.20, 
+                       'X':0.20},
+  strictly_pos_label = True,
+  dates2exclude = None,
+  **kwargs # bacckward compt
+):
+  if scalarCol is None:
+    scalarCol = labelCol
+  if type(scalarCol) ==  str:
+    scalarCol = [scalarCol]
+  if type(labelCol) ==  str:
+    labelCol = [labelCol]
+  if ts_off_scalar_hours is None:
+    ts_off_scalar_hours =  ts_off_label_hours
+  if dfTimeseriesLabel is None:
+    dfTimeseriesLabel = dfTimeseries.copy()
+  if labelEncoder is not None and encoderIsTf:
+    temp = labelEncoder
+    labelEncoder = lambda x: temp(x).numpy()
+  dfTimeseries = dfTimeseries.copy()
+  if samples is not None:
+    samples = samples.copy()
+  if scalarCol is None:
+    scalarCol = labelCol
+  if type(ts_off_label_hours) not in [np.ndarray,list]:
+    ts_off_label_hours = [ts_off_label_hours]
+  if ts_off_scalar_hours is not None:
+    if type(ts_off_scalar_hours) not in [np.ndarray,list]:
+      ts_off_scalar_hours = [ts_off_scalar_hours]
+  '''
+  '''
+  # 
+  if len(channels)>2: 
+    gray2RGB=False
+  if isinstance(pathDir,pathlib.PosixPath): 
+    pathDir = pathDir.as_posix()
+    
+  # offseting
+  # if shiftTsByLabOff:
+  for offLabel in ts_off_label_hours:
+    for labCol in labelCol:
+      dfTimeseriesLabel[f'label_{labCol}_{offLabel}'] = dfTimeseriesLabel[labCol].rolling(
+              window = f'{offLabel}H',
+              closed = 'right', # min_periods = int(scalar_lag)
+              ).apply(lambda x: x[-1]).shift(freq = f'-{offLabel}H')#[:-int(offLabel/2)] 
+      numna = dfTimeseriesLabel[f'label_{labCol}_{offLabel}'].isna().sum()
+      print(f'WARNING : {numna} NaN (droped) for label {labCol} at ts {offLabel}')
+    
+  for offScalar in ts_off_scalar_hours:
+    # WARNING : offScalar is expeccted negative or null
+    scalar_lag = -offScalar #- int(offScalar//24)
+    for scCol in scalarCol:
+      dfTimeseries[f'scalar_{scCol}_{offScalar}'] = dfTimeseries[scCol].rolling(
+          window = f'{scalar_lag}H',
+          closed = 'both', # min_periods = int(scalar_lag)
+          ).apply(lambda x: x[0])#[24*scalar_lag:] 
+    
+  # feature - label merging
+  dfTimeseries = pd.concat([dfTimeseries[[col for col in dfTimeseries.columns if 'scalar' in col]], 
+                            dfTimeseriesLabel[[col for col in dfTimeseriesLabel.columns if 'label' in col]]
+                            ], 
+                           axis = 1, join='inner')
+  
+  if ts_off_scalar_hours is not None:
+    startIdx = int(np.max(np.abs(ts_off_scalar_hours))/2)
+  else:
+    startIdx = 0
+  dfTimeseries = dfTimeseries[startIdx : -int(np.max(ts_off_label_hours)/2)]  
+  for labCol in labelCol:
+    dfTimeseries = dfTimeseries.dropna(subset=[f'label_{labCol}_{offLabel}' for offLabel in ts_off_label_hours])
+      
+  # fiiltering on sample dates
+  if samples is not None:
+    if shiftSamplesByLabelOff:
+      print('Samples shiiftng done')
+      # use when the balance of the sample is made on the actual window values, not their foreccast-labels
+      samples.index = samples.index + pd.DateOffset(hours= -ts_off_label_hours[0])
+    dfTimeseries = dfTimeseries[dfTimeseries.index.isin(samples.index)]
+    
+  if dates2exclude is not None:
+    dfTimeseries = dfTimeseries[~dfTimeseries.index.isin(dates2exclude)]
+
+  if not cache and shuffle:
+    # shuffle sumplement for small buffer
+    dfTimeseries = dfTimeseries.sample(frac=1)
+    shuffle_buffer_size = len(dfTimeseries)
+  else:
+    shuffle_buffer_size = uncachedShuffBuff
+
+  AUTOTUNE = tf.data.experimental.AUTOTUNE
+  ########################################################################
+  labels = []
+  scalars = []
+  
+  labels  = dfTimeseries[[col for col in dfTimeseries.columns if 'label' in col]].values
+  
+  # scalars = dfTimeseries[[col for col in dfTimeseries.columns if 'scalar' in col]].values
+  scalars = np.stack([dfTimeseries[[col for col in dfTimeseries.columns if f'scalar_{scCol}' in col]].values for scCol in scalarCol], axis = -1)
+
+  labels = np.array(labels)
+  labels = labels.astype('float32')
+  if ts_off_scalar_hours is not None:
+    scalars = np.array(scalars)
+    scalars = scalars.astype('float32')
+  if strictly_pos_label:
+    labels[labels<=0] = 0e-15
+  
+  print('------------------------------')
+  print('labels.shape', labels.shape)
+  print('------------------------------')
+  
+  # weighting -- NOT USED FOR FICAT
+  # if weightByClass:
+  actualWeights = {}
+  if weightByClass:
+    if len(labels.shape) < 2:
+      labelWeightingCol = np.copy(labels)
+    else:
+      if weightOffLabIdx is None:
+        labelWeightingCol = np.copy(labels[:,0])
+      else:
+        labelWeightingCol = np.copy(labels[:,weightOffLabIdx])
+    print('labelCol', labelCol)
+    print('classTresholds', classTresholds)
+    weights = np.ones(len(labelWeightingCol))
+    classes = list(classTresholds.keys())
+    for cls in classes:
+      print('CLASS', cls)
+      clsIdxs = (labelWeightingCol>=classTresholds[cls][0]) & (labelWeightingCol<classTresholds[cls][1])
+      print('len(labels)', len(labelWeightingCol))
+      print('len(labels[clsIdxs])', len(labelWeightingCol[clsIdxs]))
+      actualWeights[cls] = len(labelWeightingCol[clsIdxs]) / len(labelWeightingCol)
+      print('actualWeights[cls', actualWeights[cls])
+      weights[clsIdxs] = classWeights[cls] / actualWeights[cls]
+    weights_ds = tf.data.Dataset.from_tensor_slices(weights)
+    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    
+  # encoding
+  if labelEncoder is not None:
+    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = 'float32')# labels.map(lambda x: labelEncoder(x))
+  if scalarEncoder is not None and ts_off_scalar_hours is not None:
+    scalars = np.fromiter((scalarEncoder(x) for x in scalars), dtype = 'float32')
+    
+  # tensorflow ds 
+  # print(labels.shape)
+  labels_ds = tf.data.Dataset.from_tensor_slices(labels)
+  if ts_off_scalar_hours is not None:
+    scalars_ds = tf.data.Dataset.from_tensor_slices(scalars)
+    scalars_ds = scalars_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    
+  if regression:
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype='float32'))
+  else:
+    # TODO : make mutlilabel generic
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, tf.uint8))
+    labels_ds = labels_ds.map(lambda x: tf.one_hot(x,num_classes))
+    
+  #######################################################################
+
+    #images_ds = images_ds.map(lambda x: tf.expand_dims(tf.transpose(x,[0,3,1,2]), axis=-1),num_parallel_calls=AUTOTUNE)
+  if weightByClass:
+    ds = tf.data.Dataset.zip((scalars_ds, labels_ds, weights_ds))
+    def structure_ds(a,c,d):
+      return {
+          'scalars': a,
+      }, c, d
+    ds = ds.map(structure_ds)
+  else:
+    ds = tf.data.Dataset.zip((scalars_ds, labels_ds))
+    def structure_ds(a,c):
+      return {
+          'scalars': a,
+      }, c
+    ds = ds.map(structure_ds)
+
+
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath)
+  dfTimeseries_updated = dfTimeseries.copy()
+  return ds, [], [], dfTimeseries_updated
 
 # def builDS_image(pathDir,
 #   channels,
