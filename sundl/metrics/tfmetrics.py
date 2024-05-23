@@ -281,6 +281,65 @@ def notnull(x):
   # else:
   #   return x
   
+class MAE_weighted(RegressionMetrics):
+    def __init__(self, y_transform=None, name=None, labelDecoder=None, classId=None):
+        if name is None:
+            name = 'MAE_weighted'
+        super().__init__(name, y_transform=y_transform, labelDecoder=labelDecoder, classId=classId)
+        self.total_abs_error = self.add_weight(name='total_abs_error', initializer='zeros')
+        self.total_weight = self.add_weight(name='total_weight', initializer='zeros')
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        if self.labelDecoder is not None:
+            y_true = self.labelDecoder(y_true)
+            y_pred = self.labelDecoder(y_pred)
+        
+        if self.classId is None:
+            absolute_errors = tf.abs(y_true - y_pred)
+        else:
+            absolute_errors = tf.abs(y_true[:, self.classId] - y_pred[:, self.classId])
+        
+        if sample_weight is None:
+            sample_weight = tf.ones_like(absolute_errors)
+
+        weighted_abs_error = tf.reduce_sum(absolute_errors * sample_weight)
+        total_weight = tf.reduce_sum(sample_weight)
+
+        self.total_abs_error.assign_add(weighted_abs_error)
+        self.total_weight.assign_add(total_weight)
+
+    def result(self):
+        return self.total_abs_error / self.total_weight
+      
+class MAPE_weighted(RegressionMetrics):
+    def __init__(self, y_transform=None, name=None, labelDecoder=None, classId=None):
+        if name is None:
+            name = 'MAPE_weighted'
+        super().__init__(name, y_transform=y_transform, labelDecoder=labelDecoder, classId=classId)
+        self.weighted_errors = self.add_weight(name='weighted_errors', initializer='zeros')
+        self.total_weight = self.add_weight(name='total_weight', initializer='zeros')
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        if self.labelDecoder is not None:
+            y_true = self.labelDecoder(y_true)
+            y_pred = self.labelDecoder(y_pred)
+        
+        if self.classId is None:
+            absolute_errors = tf.abs((y_true - y_pred) / notnull(y_true))
+        else:
+            absolute_errors = tf.abs((y_true[:, self.classId] - y_pred[:, self.classId]) / notnull(y_true[:, self.classId]))
+        
+        if sample_weight is None:
+            sample_weight = tf.ones_like(absolute_errors)
+
+        weighted_abs_error = tf.reduce_sum(absolute_errors * sample_weight)
+        total_weight = tf.reduce_sum(sample_weight)
+
+        self.weighted_errors.assign_add(weighted_abs_error)
+        self.total_weight.assign_add(total_weight)
+
+    def result(self):
+        return self.weighted_errors / self.total_weight
 
 class MAE(RegressionMetrics):
   def __init__(self, y_transform = None, name = None, labelDecoder = None,classId = None):
@@ -308,6 +367,33 @@ class MAE(RegressionMetrics):
   def result(self):
       return self.errs / self.size
       
+
+class MAPE(RegressionMetrics):
+  def __init__(self, y_transform = None, name = None, labelDecoder = None,classId = None):
+    if name is None: name = 'MAPE'
+    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId)
+    self.errs = self.add_weight(name='errs', initializer='zeros')
+    self.size = self.add_weight(name='size', initializer='zeros')
+  
+  def update_state(self, y_true, y_pred, sample_weight=None):
+    if self.labelDecoder is not None:
+      y_true = self.labelDecoder(y_true)
+      y_pred = self.labelDecoder(y_pred)
+    if self.classId is None:
+      errs = tf.reduce_sum(tf.abs((y_true-y_pred)/notnull(y_true))) 
+    else:
+      errs = tf.reduce_sum(tf.abs((y_true[:,self.classId]-y_pred[:,self.classId])/notnull(y_true[:,self.classId])))
+    # size = tf.cast(y_pred.shape[0],'float32')
+    if self.classId is not None:
+      size = tf.cast(len(y_pred),'float32')
+    else:
+      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],'float32')
+    self.errs.assign_add(errs) 
+    self.size.assign_add(size)    
+  
+  def result(self):
+      return self.errs / self.size
+
 class RMSE(RegressionMetrics):
   def __init__(self, y_transform = None, name = None, labelDecoder = None, classId = None):
     if name is None: name = 'RMSE'

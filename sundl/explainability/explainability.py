@@ -246,10 +246,8 @@ def EnsembleExplainabilityRGB(ax              ,
     pred = mod.predict(images)
 
     img, vizGcam, vizGb, vizGbGcam = visual_explainer(
-        imgIdx                 = imgIdx,
         model                  = mod,
         images                 = images,
-        dataset                = ds,
         preprocFunc            = tf.keras.applications.efficientnet_v2.preprocess_input,
         last_conv_layer_name   = 'top_activation', #EffN2-S case
         classifier_layer_names =  ['avg_pool', 'top_dropout','pred'], #EffN2-S case

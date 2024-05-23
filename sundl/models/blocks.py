@@ -5,6 +5,178 @@ Collection of usefull layers and functional/sequential blocks
 import tensorflow as tf
 import numpy as np
 
+import tensorflow as tf
+
+class CrossModalAttention(tf.keras.layers.Layer):
+  def __init__(self, 
+                input_mode_dimension, # modal or also time dimension
+                spatial_dimension,
+                num_attention_heads, 
+                attention_units, 
+                residual = True, # WARNING : if True input feature dimension must be equua to num_attention_heads * attention_units
+                proj_type_3D = True  # cross-modal projection
+                ):
+    super(CrossModalAttention, self).__init__()
+    
+    self.input_mode_dimension = input_mode_dimension
+    self.spatial_dimension = spatial_dimension
+    
+    self.num_attention_heads = num_attention_heads
+    
+    self.attention_units = attention_units
+    
+    self.size = num_attention_heads * attention_units
+    
+    self.residual = residual
+    
+    self.proj_type_3D = proj_type_3D
+    
+    self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+    
+    
+    # DIM : [batch, modes, num_features]
+    self.spatial_reduction = tf.keras.Sequential([tf.keras.layers.AveragePooling3D((1,self.spatial_dimension,self.spatial_dimension)),
+                                                  tf.keras.layers.Reshape((self.input_mode_dimension,-1))])
+    
+    # Define queries, keys, and values projection layers for input mode dimension
+    # DIM : [batch, modes, num_attention_heads * attention_units]
+    if self.proj_type_3D:
+      self.input_mode_q = tf.keras.layers.Conv1D(filters=self.size, kernel_size=1)
+      self.input_mode_k = tf.keras.layers.Conv1D(filters=self.size, kernel_size=1)
+      self.input_mode_v = tf.keras.layers.Conv1D(filters=self.size, kernel_size=1)
+    else:
+      self.input_mode_q = tf.keras.layers.Dense(units=self.size)
+      self.input_mode_k = tf.keras.layers.Dense(units=self.size)
+      self.input_mode_v = tf.keras.layers.Dense(units=self.size)
+    # Define output projection layer
+    self.output_projection = tf.keras.layers.Dense(units=self.size) 
+    
+      
+  def call(self, features):
+    split_heads = tf.keras.Sequential([tf.keras.layers.Reshape(( -1, self.num_attention_heads, self.attention_units)),
+                                       tf.keras.layers.Permute((2, 1, 3))
+    ])
+    
+    # DIM : [batch, modes, num_features]
+    features = self.spatial_reduction(features)
+    
+    # Project features to queries, keys, and values for input mode dimension
+    # DIM : [batch, num_attention_heads, mode, attention_units]
+    input_mode_q = split_heads(self.input_mode_q(features))
+    input_mode_k = split_heads(self.input_mode_k(features))
+    input_mode_v = split_heads(self.input_mode_v(features))
+
+    # Compute self-attention for input mode dimension
+    # DIM : [batch, num_attention_heads , modes, modes]
+    input_mode_attention_weights = tf.matmul(input_mode_q, input_mode_k, transpose_b=True)
+    input_mode_attention_weights /= tf.sqrt(tf.cast(self.attention_units, tf.float32))
+    input_mode_attention_weights = tf.nn.softmax(input_mode_attention_weights, axis=-1)
+    
+    # DIM : [batch, num_attention_heads, modes, attention_units]
+    input_mode_attention_output = tf.matmul(input_mode_attention_weights, input_mode_v)
+    # DIM : [batch, modes, attention_units * num_attention_heads]
+    input_mode_attention_output =  tf.keras.layers.Permute([2, 1, 3])(input_mode_attention_output)
+    input_mode_attention_output = tf.keras.layers.Reshape((-1, self.size))(input_mode_attention_output)
+
+    
+    # Project combined attention output
+    projected_output = self.output_projection(input_mode_attention_output)
+    projected_output = tf.keras.layers.Dropout(0.2)(projected_output)
+
+    if self.residual:
+      projected_output = self.layer_norm(features + projected_output)
+    else:
+      projected_output = self.layer_norm(projected_output)
+  
+    return projected_output
+
+
+class CrossModalSpatialAttention(tf.keras.layers.Layer):
+  def __init__(self, 
+                input_mode_dimension, 
+                spatial_dimension,
+                num_attention_heads, 
+                attention_units, 
+                residual = True, # WARNING : if True input feature dimension must be equua to num_attention_heads * attention_units
+                proj_type_3D = True # cross-modal projection
+                ):
+    super(CrossModalSpatialAttention, self).__init__()
+    self.input_mode_dimension = input_mode_dimension
+    self.spatial_dimension = spatial_dimension
+    self.num_attention_heads = num_attention_heads
+    self.attention_units = attention_units
+    
+    self.size = num_attention_heads * attention_units
+
+    self.residual = residual
+    self.proj_type_3D = proj_type_3D
+    
+    self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+    
+    # Define queries, keys, and values projection layers
+    # DIM : [batch, modes * height * width , 3 * num_attention_heads * attention_units]
+    if self.proj_type_3D:
+      self.qkv_projection = tf.keras.Sequential([
+          tf.keras.layers.Conv3D(filters=3 * self.size, kernel_size=1),
+          tf.keras.layers.Reshape((self.input_mode_dimension * self.spatial_dimension * self.spatial_dimension, 3 * self.size))
+      ])
+    else:
+      self.qkv_projection = tf.keras.Sequential([
+          tf.keras.layers.Dense(3 * self.size),
+          tf.keras.layers.Reshape((self.input_mode_dimension * self.spatial_dimension * self.spatial_dimension, 3 * self.size))
+      ])
+    
+    # Define output projection layer
+    self.output_projection = tf.keras.layers.Dense(self.size)
+      
+  def call(self, features):
+    split_heads = tf.keras.Sequential([tf.keras.layers.Reshape(( -1, self.num_attention_heads, self.attention_units)),
+                                       tf.keras.layers.Permute((2, 1, 3))
+    ])
+    merge_heads = tf.keras.Sequential([tf.keras.layers.Permute((2, 1, 3)),
+                                      tf.keras.layers.Reshape(( -1, self.num_attention_heads * self.attention_units))
+    ])                 
+    
+    # Compute queries, keys, and values
+    # DIM : [batch, modes * height * width , 3 * num_attention_heads * attention_units]
+    qkv = self.qkv_projection(features)
+    
+    # Split Q, K, and V for each attention head
+    # DIM : [batch, modes * height * width , num_attention_heads * attention_units]  for each
+    q, k, v = tf.split(qkv, 3, axis=-1)
+    
+    # DIM : [batch, num_attention_heads, modes * height * width, attention_units]
+    q = split_heads(q)
+    k = split_heads(k)
+    v = split_heads(v)
+    
+    # Compute self-attention for each attention head
+    # DIM : [batch, num_attention_heads, modes * height * width, modes * height * width]
+    attention_weights = tf.nn.softmax(tf.matmul(q, k, transpose_b=True) / tf.sqrt(float(self.attention_units)), axis=-1)
+    
+    # DIM : [batch, num_attention_heads, modes * height * width, attention_units]
+    attention_output = tf.matmul(attention_weights, v)
+    
+    # Merge attention outputs from all attention heads
+    # DIM : [batch, modes * height * width, num_attention_heads * attention_units]
+    attention_output =  merge_heads(attention_output)
+    
+    # Project attention output
+    # DIM : [batch, modes * height * width, num_attention_heads * attention_units]
+    output = self.output_projection(attention_output)
+    
+    # Original Shape
+    # DIM : [batch, modes , height , width, num_attention_heads * attention_units]
+    output = tf.keras.layers.Reshape((self.input_mode_dimension, self.spatial_dimension, self.spatial_dimension, self.size))(output)
+    output = tf.keras.layers.Dropout(0.2)(output)
+    
+    if self.residual:
+      output = self.layer_norm(features + output)
+    else:
+      output = self.layer_norm(output)
+      
+    return output
+
 class CCTTokenizer(tf.keras.layers.Layer):
     def __init__(
         self,

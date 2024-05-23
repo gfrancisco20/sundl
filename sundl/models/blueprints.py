@@ -5,7 +5,7 @@ Functions to instantiate tensorflow models
 import tensorflow as tf
 
 from sundl.models.wrappers import reinstatiateOptim
-from sundl.models.blocks import Cct_Block_Functional
+from sundl.models.blocks import Cct_Block_Functional,  CrossModalAttention, CrossModalSpatialAttention
 
 
 
@@ -13,6 +13,186 @@ __all__ = ['build_pretrained_model',
            'build_pretrained_PatchCNN',
            'build_persistant_model'
            ]
+
+def build_CNN_CrossModalAttention(
+    num_classes = None,
+    img_size = (6, 448, 448,1),
+    alreadRgbStartIndices = [3], # channels to be processed as an rgb images
+    tfModel = tf.keras.applications.efficientnet_v2.EfficientNetV2S, # rgb-cnn feature extractor
+    attentionType = 'modal', # @ 'modal', 'modal_spatial', None  (modal/temporral and modal-spatial attention)
+    attentionDimProjType3D = True,
+    residual_attention = True,
+    num_attention_heads = 4, 
+    attention_units = 64,
+    pretainedWeight = True,
+    loss = tf.keras.losses.MeanAbsoluteError(name='loss'), # tfloss or cme_mae , cme_rmse
+    optimizer = 'adam',
+    metrics= None,
+    regression = True,
+    scaledRegression = False,
+    unfreeze_top_N = None,
+    modelName = 'CmaCnn',
+    feature_reduction = 32, # Not used if residual_attention is True and attentionType not None
+    lastTfConv = 'top_conv',
+    alpha = 0.5,
+    globalPooling = True,
+    scalarFeaturesSize = None,
+    scalarAgregation = 'feature', # @['feature', 'baseline']
+    compileModel = True,
+    labelSize = None, # for regression oonly, for classification use num_classes
+    preprocessing = None,
+    **kwargs
+):
+
+  if scalarFeaturesSize is not None:
+    image = tf.keras.layers.Input(shape=img_size, name='image')
+    scalar_input =  tf.keras.layers.Input(shape=(scalarFeaturesSize), name='scalars')
+  else:
+    image = tf.keras.layers.Input(shape=img_size, name='image')
+    
+  if preprocessing is not None:
+    preprocc_image = preprocessing(image)
+  else:
+    preprocc_image = image
+    
+  channels = []
+  chanelIdx = 0
+
+  while chanelIdx < img_size[0]:
+    if chanelIdx not in alreadRgbStartIndices:
+      channels.append(tf.expand_dims(tf.keras.layers.Conv2D(name = f'gray2RGB_{chanelIdx}',
+                                                            filters = 3,
+                                                            kernel_size = (3,3),
+                                                            padding = 'same',
+                                                            activation = None
+                                                            )(preprocc_image[:,chanelIdx]),
+                                      axis = 1)
+      )
+      chanelIdx += 1
+    else:
+      channels.append(tf.keras.layers.Permute((4, 2, 3, 1))(preprocc_image[:,chanelIdx:chanelIdx+3]))
+      chanelIdx += 3
+    print(channels[-1].shape)
+    
+  channels = tf.keras.layers.Concatenate(axis=1)(channels)
+  
+  print(channels.shape)
+  
+  
+  extractor_input  = tf.keras.layers.Input(shape=(img_size[1],img_size[2],3), name='image')
+  if pretainedWeight:
+    feature_extractor = tfModel(include_top=False, input_tensor=extractor_input, weights="imagenet",**kwargs)
+  else:
+    feature_extractor = tfModel(include_top=False, input_tensor=extractor_input, weights=None,**kwargs)
+    
+  # Freeze the pretrained weights
+  feature_extractor.trainable = not pretainedWeight
+  if pretainedWeight and unfreeze_top_N is not None:
+    # We unfreeze the top N layers while leaving BatchNorm layers frozen
+    if unfreeze_top_N == 'all':
+      for layer in feature_extractor.layers:
+          layer.trainable = True
+    else:
+      ct = 0
+      for layer in reversed(feature_extractor.layers):#[-unfreeze_top_N:]:
+        if not isinstance(layer, tf.keras.layers.BatchNormalization):
+          layer.trainable = True
+          ct+=1
+        if ct > unfreeze_top_N:
+          break
+
+  if residual_attention and attentionType is not None:
+    feature_reduction  = num_attention_heads * attention_units
+    print('WARNING  : "residual_attention" is "True", "feature_reduction" is ignored and set to "num_attention_heads * attention_units"')
+  if feature_reduction is not None:
+    for layer in feature_extractor.layers:
+      if layer.name == lastTfConv:
+        preConvInput = layer.input
+    # print(feature_reduction)
+    if type(feature_reduction) == int:
+      top_conv = tf.keras.layers.Conv2D(name = 'top_conv',
+                                  filters = feature_reduction,
+                                  kernel_size = (3,3),
+                                  padding='same',
+                                  activation = None
+                                  )(preConvInput)
+    else:
+      top_conv = feature_reduction(preConvInput)
+    top_conv = tf.keras.layers.BatchNormalization(name =  f'top_bn')(top_conv)
+    top_conv = tf.keras.layers.Activation(activation='relu', name =  f'top_activation')(top_conv)
+    feature_extractor = tf.keras.models.Model(
+        feature_extractor.input,
+        top_conv
+    )
+
+  features = tf.keras.layers.TimeDistributed(feature_extractor)(channels)
+
+  if attentionType is not None:
+    # Apply cross-modal-and-spatial self-attention
+    if attentionType == 'modal':
+      attention_layer = CrossModalAttention(input_mode_dimension = features.shape[1], 
+                                            spatial_dimension =  features.shape[2],
+                                            num_attention_heads = num_attention_heads,
+                                            attention_units = attention_units,
+                                            residual = residual_attention,
+                                            proj_type_3D = attentionDimProjType3D
+                                            )
+      # DIM : [batch, modes, attention_units * num_attention_heads]
+      attention_output = attention_layer(features)
+      # DIM : [batch, modes, 1, 1, attention_units * num_attention_heads]
+      attention_output = tf.expand_dims(tf.expand_dims(attention_output, axis=2), axis=2)
+    else:
+      print('WARNING : assumed attention type is modal_spatial')
+      attention_layer = CrossModalSpatialAttention(
+                                            input_mode_dimension = features.shape[1], 
+                                            spatial_dimension =  features.shape[2],
+                                            num_attention_heads = num_attention_heads,
+                                            attention_units = attention_units,
+                                            residual = residual_attention,
+                                            proj_type_3D = attentionDimProjType3D
+                                            )
+      # DIM : [batch, modes , height , width, num_attention_heads * attention_units]
+      attention_output = attention_layer(features)
+    x = attention_output
+  else:
+    x = features
+    
+  # Output layers
+  if globalPooling:
+    x = tf.keras.layers.AveragePooling3D((1, x.shape[2], x.shape[3]), name="avg_pool_vectorisation" )(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+  x = tf.keras.layers.Flatten(name=f'flatten')(x)
+    
+  if scalarFeaturesSize is not None and scalarAgregation == 'feature':
+    x = tf.keras.layers.Concatenate(axis=1)([x,tf.keras.layers.BatchNormalization()(scalar_input)])
+  # x = tf.keras.layers.BatchNormalization()(x)
+  top_dropout_rate = 0.2
+  x = tf.keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
+  if regression:
+    if labelSize is None:
+      labelSize = 1
+    if scaledRegression:
+      # Case where regression labels are scaled in [0,1] for potentially more stability)
+      output = tf.keras.layers.Dense(labelSize, activation="sigmoid", name="pred")(x)
+    else:
+      output = tf.keras.layers.Dense(labelSize, name="pred", )(x)
+      # TODO : add baseeline case to otheer otpt kinds
+      if scalarFeaturesSize is not None and scalarAgregation == 'baseline':
+        output = tf.keras.layers.Add()([output, scalar_input])
+  else:
+    output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred")(x)
+  
+    
+  # Compile
+  if scalarFeaturesSize is not None:
+    model = tf.keras.Model((image,scalar_input), output, name=modelName)
+  else:
+    model = tf.keras.Model(image, output, name=modelName)
+  if compileModel:
+    optimizer = reinstatiateOptim(optimizer)
+    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+  return model
+
 
 def build_persistant_model(
     loss="mae",

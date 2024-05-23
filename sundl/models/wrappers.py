@@ -6,7 +6,7 @@ from functools import reduce
 import dill as pickle
 import tensorflow as tf
 
-from sundl.utils.schedulers import LRScheduleDivbySteps
+# from sundl.utils.schedulers import LRScheduleDivbySteps
 
 __all__ = ['ModelInstantier',
            'reinstatiateOptim'

@@ -10,6 +10,7 @@ import pandas as pd
 import tensorflow as tf
 from PIL import Image
 from sundl.utils.data import read_Dataframe_With_Dates
+
 def configure_for_performance(ds, batch_size, shuffle_buffer_size=1000, shuffle = False, cache=True, prefetch=True, epochs = None, cachePath = ''):
   if cache:
     ds = ds.cache(cachePath)
@@ -364,11 +365,11 @@ def builDS_image_feature(
       if imHeight == imWidth and img_size[0] != img_size[1] and crop_coord is None:
         # default cropping for flare pole
         if img_size[1] > img_size[0]: #  width > height
-          top = (img_size[1] + img_size[0]) / 2
-          left = img_size[1]
+          top = int((img_size[1] + img_size[0]) / 2)
+          left = int(img_size[1])
         else:
-          top = img_size[0]
-          left = (img_size[1] + img_size[0]) / 2
+          top = int(img_size[0])
+          left = int((img_size[1] + img_size[0]) / 2)
         images_ds = images_ds.map(lambda x: tf.image.crop_to_bounding_box(x,
                                                                         offset_height = top, 
                                                                         offset_width = left, 
@@ -668,7 +669,7 @@ def builDS_ts_feature(
     
   # feature - label merging
   dfTimeseries = pd.concat([dfTimeseries[[col for col in dfTimeseries.columns if 'scalar' in col]], 
-                            dfTimeseriesLabel[[col for col in dfTimeseriesLabel.columns if 'label' in col]]
+                            dfTimeseriesLabel[[col for col in dfTimeseriesLabel.columns if 'label' in col] + labelCol + ['cls']]
                             ], 
                            axis = 1, join='inner')
   

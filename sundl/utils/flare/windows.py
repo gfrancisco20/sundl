@@ -16,7 +16,7 @@ def windowHistoryFromFlList(flCatalog,
                             minDate = None, 
                             maxDate = None,
                             colPeakFlux = 'peak_flux',
-                            colIntFlux = 'flux_integral',
+                            colIntFlux = 'flux_integral_net',
                             colClasses = 'cat',
                             classes = ['A','B','C','M','X']
                             ):
@@ -25,7 +25,7 @@ def windowHistoryFromFlList(flCatalog,
   The results is given as a  feature/history of a given time-window, i.e. at date D, the values characterize the interval 
   [D - window_h ; D[
   To obtain labels for the time-windows, i.e. value characterizing [D ; D + window_h [ at date D, 
-  one can simply shift the index of the output : fl_labels = fl_history.shift(periods =  -window_h, freq='H')
+  shift the index of the output : fl_labels = fl_history.shift(periods =  -window_h, freq='H')
   
   Parameters
   ----------
@@ -59,6 +59,9 @@ def windowHistoryFromFlList(flCatalog,
     a dataframe of (window_h)H-time-windows features at a resolution of (timeRes_h)H
   """
   flares = flCatalog.copy()
+  
+  flares[colIntFlux][flares[colIntFlux] < 0] = 0
+    
   # flares['timestamp'] = flares['timestamp'].apply(lambda x: datetime.datetime.strptime(x,'%Y-%m-%d %H:%M:%S')) # '%Y/%m/%d/H%H00/
   # flares = flares.set_index('timestamp',drop = True)
   freq = f'{timeRes_h}h'
@@ -190,7 +193,7 @@ def windowHistoryFromFlList_ByPatchSector_EXACT(
   ########################################################
   for end in timestamps[(window_h//2):]:
     start = end - pd.offsets.DateOffset(hours = window_h)
-    flares = flCatalog_positions[(flCatalog_positions.index > start) & (flCatalog_positions.index <= end)].copy()
+    flares = flCatalog_positions[(flCatalog_positions.index >= start) & (flCatalog_positions.index < end)].copy()
     if len(flares)>0:
       flares['t2mpf_delay'] = flares['tstart'].apply(lambda x: x-end)
       flares[f't2mpf_h'] = flares['t2mpf_delay'].apply(lambda x: x.total_seconds()/3600)
@@ -212,13 +215,13 @@ def windowHistoryFromFlList_ByPatchSector_EXACT(
           struct['y'] = flaresSector['y'].iloc[idxMpf]
           struct['t2mpf_h'] = flaresSector['t2mpf_h'].iloc[idxMpf]
           # tote
-          struct['tote'] = flaresSector['flux_integral'].sum()
+          struct['tote'] = flaresSector['flux_integral_net'].sum()
           struct['toteh'] = struct['tote'] / window_h
           # clss
           for cls in ['A','B','C','M','X']:
             flaresSectorClass = flaresSector[(flaresSector['peak_flux'] >= mpfTresh[cls][0]) & (flaresSector['peak_flux'] < mpfTresh[cls][1])].copy()
             struct[f'rate_{cls}'] = len(flaresSectorClass)
-            struct[f'tote_{cls}'] = flaresSectorClass['flux_integral'].sum()
+            struct[f'tote_{cls}'] = flaresSectorClass['flux_integral_net'].sum()
         else:
           struct = initStructWindow()
           struct['timestamp'] = end
