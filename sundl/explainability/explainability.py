@@ -269,14 +269,14 @@ def EnsembleExplainabilityRGB(ax              ,
 
     # finalVizGcam = dip.Overlay(magnetogram, mask,  color = [255,secCol,0])
     if idx == 0:
-      vizGcamEns = vizGcam.astype(prec)
-      vizGbEns = vizGb.astype(prec)
-      vizGbGcamEns = vizGbGcam.astype(prec)
+      vizGcamEns = vizGcam.astype('float32')
+      vizGbEns = vizGb.astype('float32')
+      vizGbGcamEns = vizGbGcam.astype('float32')
       predEns = pred
     else:
-      vizGcamEns += vizGcam.astype(prec)
-      vizGbEns += vizGb.astype(prec)
-      vizGbGcamEns += vizGbGcam.astype(prec)
+      vizGcamEns += vizGcam.astype('float32')
+      vizGbEns += vizGb.astype('float32')
+      vizGbGcamEns += vizGbGcam.astype('float32')
       predEns += pred
 
     tf.keras.backend.clear_session()

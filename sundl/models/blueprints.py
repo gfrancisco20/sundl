@@ -206,6 +206,7 @@ def build_persistant_model(
     regression = True, # unused but needed  for fn prototype compatibility (of builDS from ModelInstantier class)
     num_classes = 2,
     compileModel = True,
+    prec = 'float32',
     **kwargs
 ):
   class PersistantModel(tf.keras.Model):
