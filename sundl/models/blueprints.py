@@ -32,7 +32,9 @@ def build_CNN_CrossModalAttention(
     scaledRegression = False,
     unfreeze_top_N = None,
     modelName = 'CmaCnn',
-    feature_reduction = 32, # Not used if residual_attention is True and attentionType not None
+    ensure_residual_compat = True,
+    feature_reduction = 32, # Not used if residual_attention is True and attentionType not None , if ensure_residual_compat is True
+    replace_last_conv = False, # feature_reduction replace or add after it
     lastTfConv = 'top_conv',
     alpha = 0.5,
     globalPooling = True,
@@ -101,16 +103,19 @@ def build_CNN_CrossModalAttention(
         if ct > unfreeze_top_N:
           break
 
-  if residual_attention and attentionType is not None:
+  if residual_attention and attentionType is not None and ensure_residual_compat:
     feature_reduction  = num_attention_heads * attention_units
     print('WARNING  : "residual_attention" is "True", "feature_reduction" is ignored and set to "num_attention_heads * attention_units"')
   if feature_reduction is not None:
     for layer in feature_extractor.layers:
       if layer.name == lastTfConv:
-        preConvInput = layer.input
+        if replace_last_conv:
+          preConvInput = layer.input
+        else:
+          preConvInput = layer.output
     # print(feature_reduction)
     if type(feature_reduction) == int:
-      top_conv = tf.keras.layers.Conv2D(name = 'top_conv',
+      top_conv = tf.keras.layers.Conv2D(name = 'top_conv2',
                                   filters = feature_reduction,
                                   kernel_size = (3,3),
                                   padding='same',
@@ -118,8 +123,8 @@ def build_CNN_CrossModalAttention(
                                   )(preConvInput)
     else:
       top_conv = feature_reduction(preConvInput)
-    top_conv = tf.keras.layers.BatchNormalization(name =  f'top_bn')(top_conv)
-    top_conv = tf.keras.layers.Activation(activation='relu', name =  f'top_activation')(top_conv)
+    top_conv = tf.keras.layers.BatchNormalization(name =  f'top_bn2')(top_conv)
+    top_conv = tf.keras.layers.Activation(activation='relu', name =  f'top_activation2')(top_conv)
     feature_extractor = tf.keras.models.Model(
         feature_extractor.input,
         top_conv
