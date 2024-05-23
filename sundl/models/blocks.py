@@ -69,7 +69,7 @@ class CrossModalAttention(tf.keras.layers.Layer):
     # Compute self-attention for input mode dimension
     # DIM : [batch, num_attention_heads , modes, modes]
     input_mode_attention_weights = tf.matmul(input_mode_q, input_mode_k, transpose_b=True)
-    input_mode_attention_weights /= tf.sqrt(tf.cast(self.attention_units, tf.float32))
+    input_mode_attention_weights /= tf.sqrt(self.attention_units)
     input_mode_attention_weights = tf.nn.softmax(input_mode_attention_weights, axis=-1)
     
     # DIM : [batch, num_attention_heads, modes, attention_units]
