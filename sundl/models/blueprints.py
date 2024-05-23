@@ -225,8 +225,8 @@ def build_persistant_model(
         if output.shape[1] != num_classes:
           output = tf.cast(output, dtype='uint8')
           output = tf.one_hot(output,num_classes)
-        output = tf.cast(output, dtype='float32')
-      # output = tf.cast(output, dtype='float32')
+        output = tf.cast(output, dtype=prec)
+      # output = tf.cast(output, dtype=prec)
       # output = output >=1
       # output = tf.cast(output, dtype=inputs.dtype)
       return output

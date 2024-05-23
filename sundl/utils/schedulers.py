@@ -19,7 +19,7 @@ class LRScheduleDivbySteps(tf.keras.optimizers.schedules.LearningRateSchedule):
     #   return self.initial_learning_rate
     lr = self.initial_learning_rate
     newLr = self.initial_learning_rate / self.divider
-    getNew = tf.cast(tf.math.equal(tf.cast((step+1) % self.num_step, dtype='float32'), 0.0), dtype='float32')
+    getNew = tf.cast(tf.math.equal(tf.cast((step+1) % self.num_step, dtype=prec), 0.0), dtype=prec)
     return (1-getNew) * lr + getNew * newLr
 
 

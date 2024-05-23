@@ -273,8 +273,8 @@ class RegressionMetrics(tf.keras.metrics.Metric):#,ABC):
   #   return self.compute_metric(y_true, y_pred)
 
 def notnull(x):
-  # isNull = tf.math.reduce_sum(tf.cast(tf.math.equal(x,0.0),'float32'))
-  isNull = tf.cast(tf.math.equal(x,0.0),'float32')
+  # isNull = tf.math.reduce_sum(tf.cast(tf.math.equal(x,0.0),prec))
+  isNull = tf.cast(tf.math.equal(x,0.0),prec)
   return isNull * epsilon + (1.0-isNull) * x
   # if x==0:
   #   return epsilon # tf.keras.backend.epsilon()
@@ -356,11 +356,11 @@ class MAE(RegressionMetrics):
       errs = tf.reduce_sum(tf.abs(y_true-y_pred))
     else:
       errs = tf.reduce_sum(tf.abs(y_true[:,self.classId]-y_pred[:,self.classId]))
-    # size = tf.cast(y_pred.shape[0],'float32')
+    # size = tf.cast(y_pred.shape[0],prec)
     if self.classId is not None:
-      size = tf.cast(len(y_pred),'float32')
+      size = tf.cast(len(y_pred),prec)
     else:
-      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],'float32')
+      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],prec)
     self.errs.assign_add(errs) 
     self.size.assign_add(size)    
   
@@ -383,11 +383,11 @@ class MAPE(RegressionMetrics):
       errs = tf.reduce_sum(tf.abs((y_true-y_pred)/notnull(y_true))) 
     else:
       errs = tf.reduce_sum(tf.abs((y_true[:,self.classId]-y_pred[:,self.classId])/notnull(y_true[:,self.classId])))
-    # size = tf.cast(y_pred.shape[0],'float32')
+    # size = tf.cast(y_pred.shape[0],prec)
     if self.classId is not None:
-      size = tf.cast(len(y_pred),'float32')
+      size = tf.cast(len(y_pred),prec)
     else:
-      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],'float32')
+      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],prec)
     self.errs.assign_add(errs) 
     self.size.assign_add(size)    
   
@@ -409,11 +409,11 @@ class RMSE(RegressionMetrics):
       errs = tf.reduce_sum(tf.square(y_true-y_pred))
     else:
       errs = tf.reduce_sum(tf.square(y_true[:,self.classId]-y_pred[:,self.classId]))
-    # size = tf.cast(y_pred.shape[0],'float32')
+    # size = tf.cast(y_pred.shape[0],prec)
     if self.classId is not None:
-      size = tf.cast(len(y_pred),'float32')
+      size = tf.cast(len(y_pred),prec)
     else:
-      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],'float32')
+      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],prec)
     self.errs.assign_add(errs) 
     self.size.assign_add(size)    
   
@@ -449,11 +449,11 @@ class R2(RegressionMetrics):
       # prod = tf.reduce_sum(y_true[:,self.classId] * y_pred[:,self.classId] )
       prod = tf.reduce_sum(tf.math.multiply(y_true[:,self.classId],y_pred[:,self.classId])) 
     if self.classId is not None:
-      size = tf.cast(len(y_pred),'float32')
+      size = tf.cast(len(y_pred),prec)
     else:
       # n = y_pred.shape[0]*y_pred.shape[1]
-      n  = tf.reduce_sum(tf.cast(tf.math.equal(y_pred,y_pred),'float32'))
-      size = tf.cast(n,'float32')
+      n  = tf.reduce_sum(tf.cast(tf.math.equal(y_pred,y_pred),prec))
+      size = tf.cast(n,prec)
     self.size.assign_add(size)   
     self.yTrue.assign_add(yTrue)   
     self.yTrue2.assign_add(yTrue2)   

@@ -39,7 +39,7 @@ def fileId2FnPattern(fileId,pathDir,channels):
       res = tf.concat([res,[regexp]],axis=-1)
   return res
 
-def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False):
+def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False, prec='float32'):
   # Load the raw data from the file as a string
   for idx in range(file_path.shape[0]):
     img = tf.io.read_file(file_path[idx])
@@ -49,7 +49,7 @@ def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False):
     # if img_size is not None:
     #   img = tf.image.resize(img, [img_size, img_size])
     # else:
-    img = 255.0*tf.image.convert_image_dtype(img, tf.dtypes.float32, saturate=False, name=None)
+    img = 255.0*tf.image.convert_image_dtype(img, prec, saturate=False, name=None)
     if idx==0:
       res = img
     else:
@@ -64,14 +64,14 @@ def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False):
   return res
 
 #@tf.autograph.experimental
-def parse_image_normalize_tfMode(file_path, gray2RGB, means, stds):
+def parse_image_normalize_tfMode(file_path, gray2RGB, means, stds,prec):
   for idx in range(file_path.shape[0]):
     img = tf.io.read_file(file_path[idx])
     img = tf.io.decode_jpeg(img, channels=0)
     # if img_size is not None:
     #   img = tf.image.resize(img, [img_size, img_size])
     # else:
-    img = 255.0*tf.image.convert_image_dtype(img, tf.dtypes.float32, saturate=False, name=None)
+    img = 255.0*tf.image.convert_image_dtype(img, prec, saturate=False, name=None)
     # chnWiseNormalize:
     img = (img - means[idx]) / stds[idx]
     if idx==0:
@@ -124,6 +124,7 @@ def builDS_image_feature(
                        'X':0.20},
   strictly_pos_label = True,
   dates2exclude = None,
+  prec = 'float32',
   **kwargs # bacckward compt
 ):
   if labelEncoder is not None and encoderIsTf:
@@ -278,10 +279,10 @@ def builDS_image_feature(
       missing_file_idx.append(idx)
       missing_file_regexp.append(pattern.numpy()[0])
   labels = np.array(labels)
-  labels = labels.astype('float32')
+  labels = labels.astype(prec)
   if ts_off_scalar_hours is not None:
     scalars = np.array(scalars)
-    scalars = scalars.astype('float32')
+    scalars = scalars.astype(prec)
   if strictly_pos_label:
     labels[labels<=0] = 0e-15
   
@@ -313,23 +314,23 @@ def builDS_image_feature(
       print('actualWeights[cls', actualWeights[cls])
       weights[clsIdxs] = classWeights[cls] / actualWeights[cls]
     weights_ds = tf.data.Dataset.from_tensor_slices(weights)
-    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype=prec))
     
   # encoding
   if labelEncoder is not None:
-    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = 'float32')# labels.map(lambda x: labelEncoder(x))
+    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = prec)# labels.map(lambda x: labelEncoder(x))
   if scalarEncoder is not None and ts_off_scalar_hours is not None:
-    scalars = np.fromiter((scalarEncoder(x) for x in scalars), dtype = 'float32')
+    scalars = np.fromiter((scalarEncoder(x) for x in scalars), dtype = prec)
     
   # tensorflow ds 
   # print(labels.shape)
   labels_ds = tf.data.Dataset.from_tensor_slices(labels)
   if ts_off_scalar_hours is not None:
     scalars_ds = tf.data.Dataset.from_tensor_slices(scalars)
-    scalars_ds = scalars_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    scalars_ds = scalars_ds.map(lambda x: tf.cast(x, dtype=prec))
     
   if regression:
-    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype=prec))
   else:
     # TODO : make mutlilabel generic
     labels_ds = labels_ds.map(lambda x: tf.cast(x, tf.uint8))
@@ -341,7 +342,7 @@ def builDS_image_feature(
   im = np.array(Image.open(filenames[0][0]))
   isGray = True if len(im.shape)==2 else False
   
-  images_ds = filenames_ds.map(lambda x: parse_image(x,pathDir,gray2RGB, isGray, sepPosNeg), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
+  images_ds = filenames_ds.map(lambda x: parse_image(x,pathDir,gray2RGB, isGray, sepPosNeg, prec), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
   
   if shape3d:
     images_ds = images_ds.map(lambda x: tf.expand_dims(tf.transpose(x,[2,0,1]), axis=-1),num_parallel_calls=AUTOTUNE) # if no prior batching
@@ -431,6 +432,7 @@ def buildDS_persistant_MTS(
                 img_size = None, # for compatibility only
                 weightOffLabIdx = None,
                 dates2exclude = None,
+                prec = 'float32',
                 **kwargs
                 ):
   if labelEncoder is not None and encoderIsTf:
@@ -507,7 +509,7 @@ def buildDS_persistant_MTS(
       print('actualWeights[cls', actualWeights[cls])
       weights[clsIdxs] = classWeights[cls] / actualWeights[cls]
     weights_ds = tf.data.Dataset.from_tensor_slices(weights)
-    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype=prec))
     
   # # encoding
   # if labelEncoder is not None:
@@ -529,8 +531,8 @@ def buildDS_persistant_MTS(
   #   labels = labelEncoder(labels)
   #   inputs = labelEncoder(inputs)
   if labelEncoder is not None:
-    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = 'float32')# labels.map(lambda x: labelEncoder(x))
-    inputs = np.fromiter((labelEncoder(x) for x in inputs), dtype = 'float32')
+    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = prec)# labels.map(lambda x: labelEncoder(x))
+    inputs = np.fromiter((labelEncoder(x) for x in inputs), dtype = prec)
 
   # tensorflow ds
   labels_ds = tf.data.Dataset.from_tensor_slices(labels)
@@ -542,8 +544,8 @@ def buildDS_persistant_MTS(
     inputs_ds = inputs_ds.map(lambda x: tf.cast(x, tf.uint8))
     inputs_ds = inputs_ds.map(lambda x: tf.one_hot(x,num_classes))
   else:
-    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype='float32'))
-    inputs_ds = inputs_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype=prec))
+    inputs_ds = inputs_ds.map(lambda x: tf.cast(x, dtype=prec))
 
   if weightByClass:
     ds = tf.data.Dataset.zip((inputs_ds, labels_ds, weights_ds))
@@ -614,6 +616,7 @@ def builDS_ts_feature(
                        'X':0.20},
   strictly_pos_label = True,
   dates2exclude = None,
+  prec = 'float32',
   **kwargs # bacckward compt
 ):
   if scalarCol is None:
@@ -710,10 +713,10 @@ def builDS_ts_feature(
   scalars = np.stack([dfTimeseries[[col for col in dfTimeseries.columns if f'scalar_{scCol}' in col]].values for scCol in scalarCol], axis = -1)
 
   labels = np.array(labels)
-  labels = labels.astype('float32')
+  labels = labels.astype(prec)
   if ts_off_scalar_hours is not None:
     scalars = np.array(scalars)
-    scalars = scalars.astype('float32')
+    scalars = scalars.astype(prec)
   if strictly_pos_label:
     labels[labels<=0] = 0e-15
   
@@ -745,23 +748,23 @@ def builDS_ts_feature(
       print('actualWeights[cls', actualWeights[cls])
       weights[clsIdxs] = classWeights[cls] / actualWeights[cls]
     weights_ds = tf.data.Dataset.from_tensor_slices(weights)
-    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype=prec))
     
   # encoding
   if labelEncoder is not None:
-    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = 'float32')# labels.map(lambda x: labelEncoder(x))
+    labels = np.fromiter((labelEncoder(x) for x in labels), dtype = prec)# labels.map(lambda x: labelEncoder(x))
   if scalarEncoder is not None and ts_off_scalar_hours is not None:
-    scalars = np.fromiter((scalarEncoder(x) for x in scalars), dtype = 'float32')
+    scalars = np.fromiter((scalarEncoder(x) for x in scalars), dtype = prec)
     
   # tensorflow ds 
   # print(labels.shape)
   labels_ds = tf.data.Dataset.from_tensor_slices(labels)
   if ts_off_scalar_hours is not None:
     scalars_ds = tf.data.Dataset.from_tensor_slices(scalars)
-    scalars_ds = scalars_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    scalars_ds = scalars_ds.map(lambda x: tf.cast(x, dtype=prec))
     
   if regression:
-    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype='float32'))
+    labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype=prec))
   else:
     # TODO : make mutlilabel generic
     labels_ds = labels_ds.map(lambda x: tf.cast(x, tf.uint8))
@@ -948,14 +951,14 @@ def builDS_ts_feature(
 #       print('actualWeights[cls', actualWeights[cls])
 #       weights[clsIdxs] = classWeights[cls] / actualWeights[cls]
 #     weights_ds = tf.data.Dataset.from_tensor_slices(weights)
-#     weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
+#     weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype=prec))
 #   # encoding
 #   if labelEncoder is not None:
-#     labels = np.fromiter((labelEncoder(x) for x in labels), dtype = 'float32')# labels.map(lambda x: labelEncoder(x))
+#     labels = np.fromiter((labelEncoder(x) for x in labels), dtype = prec)# labels.map(lambda x: labelEncoder(x))
 #   # tensorflow ds
 #   labels_ds = tf.data.Dataset.from_tensor_slices(labels)
 #   if regression:
-#     labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype='float32'))
+#     labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype=prec))
 #   else:
 #     labels_ds = labels_ds.map(lambda x: tf.cast(x, tf.uint8))
 #     labels_ds = labels_ds.map(lambda x: tf.one_hot(x,num_classes))
@@ -968,8 +971,8 @@ def builDS_ts_feature(
 #     duration = time.time()
 #     filenames_ds = tf.data.Dataset.from_tensor_slices(filenames)
 #     pixstat = pd.read_csv(pathNormFile).set_index('channel')
-#     tfMeans = tf.constant([pixstat.loc[str(channel)]['mean_wg'] for channel in channels], dtype='float32')
-#     tfStd = tf.constant([pixstat.loc[str(channel)]['std_wg'] for channel in channels], dtype='float32')
+#     tfMeans = tf.constant([pixstat.loc[str(channel)]['mean_wg'] for channel in channels], dtype=prec)
+#     tfStd = tf.constant([pixstat.loc[str(channel)]['std_wg'] for channel in channels], dtype=prec)
 #     @tf.autograph.experimental.do_not_convert
 #     def tf_normaliser(x):
 #       return parse_image_normalize_tfMode(x,gray2RGB, tfMeans, tfStd)
@@ -1064,7 +1067,7 @@ def builDS_ts_feature(
 #       print('actualWeights[cls', actualWeights[cls])
 #       weights[clsIdxs] = classWeights[cls] / actualWeights[cls]
 #     weights_ds = tf.data.Dataset.from_tensor_slices(weights)
-#     weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype='float32'))
+#     weights_ds = weights_ds.map(lambda x: tf.cast(x, dtype=prec))
 
 #   # encoding
 #   if historyEncoder is not None:
@@ -1079,8 +1082,8 @@ def builDS_ts_feature(
 #     labels_ds = labels_ds.map(lambda x: tf.cast(x, tf.uint8))
 #     labels_ds = labels_ds.map(lambda x: tf.one_hot(x,num_classes))
 #   else:
-#     labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype='float32'))
-#   flareHistoPreds_ds = flareHistoPreds_ds.map(lambda x: tf.cast(x, dtype='float32'))
+#     labels_ds = labels_ds.map(lambda x: tf.cast(x, dtype=prec))
+#   flareHistoPreds_ds = flareHistoPreds_ds.map(lambda x: tf.cast(x, dtype=prec))
 
 #   if weightByClass:
 #     ds = tf.data.Dataset.zip((flareHistoPreds_ds, labels_ds, weights_ds))
