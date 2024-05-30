@@ -38,6 +38,8 @@ class CrossModalAttention(tf.keras.layers.Layer):
     self.spatial_reduction = tf.keras.Sequential([tf.keras.layers.AveragePooling3D((1,self.spatial_dimension,self.spatial_dimension)),
                                                   tf.keras.layers.Reshape((self.input_mode_dimension,-1))])
     
+    
+    
     # Define queries, keys, and values projection layers for input mode dimension
     # DIM : [batch, modes, num_attention_heads * attention_units]
     if self.proj_type_3D:
@@ -51,12 +53,18 @@ class CrossModalAttention(tf.keras.layers.Layer):
     # Define output projection layer
     self.output_projection = tf.keras.layers.Dense(units=self.size) 
     
-      
-  def call(self, features):
-    split_heads = tf.keras.Sequential([tf.keras.layers.Reshape(( -1, self.num_attention_heads, self.attention_units)),
+    self.split_heads = tf.keras.Sequential([tf.keras.layers.Reshape(( -1, self.num_attention_heads, self.attention_units)),
                                        tf.keras.layers.Permute((2, 1, 3))
     ])
     
+    self.merge_heads = tf.keras.Sequential([ tf.keras.layers.Permute([2, 1, 3]),
+                                            tf.keras.layers.Reshape((-1, self.size))])
+    
+    self.dropout = tf.keras.layers.Dropout(0.2)
+      
+  def call(self, features):
+    
+    split_heads = self.split_heads
     # DIM : [batch, modes, num_features]
     features = self.spatial_reduction(features)
     
@@ -75,13 +83,15 @@ class CrossModalAttention(tf.keras.layers.Layer):
     # DIM : [batch, num_attention_heads, modes, attention_units]
     input_mode_attention_output = tf.matmul(input_mode_attention_weights, input_mode_v)
     # DIM : [batch, modes, attention_units * num_attention_heads]
-    input_mode_attention_output =  tf.keras.layers.Permute([2, 1, 3])(input_mode_attention_output)
-    input_mode_attention_output = tf.keras.layers.Reshape((-1, self.size))(input_mode_attention_output)
+    input_mode_attention_output =   self.merge_heads(input_mode_attention_output)
+    
+    # input_mode_attention_output =  tf.keras.layers.Permute([2, 1, 3])(input_mode_attention_output)
+    # input_mode_attention_output = tf.keras.layers.Reshape((-1, self.size))(input_mode_attention_output)
 
     
     # Project combined attention output
     projected_output = self.output_projection(input_mode_attention_output)
-    projected_output = tf.keras.layers.Dropout(0.2)(projected_output)
+    projected_output = self.dropout(projected_output)
 
     if self.residual:
       projected_output = self.layer_norm(features + projected_output)
@@ -128,14 +138,20 @@ class CrossModalSpatialAttention(tf.keras.layers.Layer):
     
     # Define output projection layer
     self.output_projection = tf.keras.layers.Dense(self.size)
-      
-  def call(self, features):
-    split_heads = tf.keras.Sequential([tf.keras.layers.Reshape(( -1, self.num_attention_heads, self.attention_units)),
-                                       tf.keras.layers.Permute((2, 1, 3))
-    ])
-    merge_heads = tf.keras.Sequential([tf.keras.layers.Permute((2, 1, 3)),
+    
+    self.split_heads = tf.keras.Sequential([tf.keras.layers.Reshape(( -1, self.num_attention_heads, self.attention_units)),
+                                       tf.keras.layers.Permute((2, 1, 3))])
+    self.merge_heads = tf.keras.Sequential([tf.keras.layers.Permute((2, 1, 3)),
                                       tf.keras.layers.Reshape(( -1, self.num_attention_heads * self.attention_units))
     ])                 
+    
+    self.final_reshape = tf.keras.layers.Reshape((self.input_mode_dimension, self.spatial_dimension, self.spatial_dimension, self.size))
+    self.dropout =  tf.keras.layers.Dropout(0.2)                                 
+                    
+      
+  def call(self, features):
+    split_heads = self.split_heads
+    merge_heads = self.merge_heads
     
     # Compute queries, keys, and values
     # DIM : [batch, modes * height * width , 3 * num_attention_heads * attention_units]
@@ -167,8 +183,8 @@ class CrossModalSpatialAttention(tf.keras.layers.Layer):
     
     # Original Shape
     # DIM : [batch, modes , height , width, num_attention_heads * attention_units]
-    output = tf.keras.layers.Reshape((self.input_mode_dimension, self.spatial_dimension, self.spatial_dimension, self.size))(output)
-    output = tf.keras.layers.Dropout(0.2)(output)
+    output = self.final_reshape(output)
+    output = self.dropout(output)
     
     if self.residual:
       output = self.layer_norm(features + output)
