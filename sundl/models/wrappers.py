@@ -169,5 +169,8 @@ def reinstatiateOptim(optimizer):
     #           learning_rate= optiConfig['learning_rate'],
     #           weight_decay=optiConfig['weight_decay']
     # )
-    optimizer = optimizer.from_config(optimizer.get_config())
+    try:
+      optimizer = optimizer.from_config(optimizer.get_config())
+    except:
+      optimizer = optimizer
   return optimizer
