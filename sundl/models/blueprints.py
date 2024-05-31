@@ -572,7 +572,8 @@ def build_pretrained_model(
      model.input ,
      top_conv
     )
-    x = model.output
+      
+  x = model.output
 
 
   # if feature_reduction is not None:
