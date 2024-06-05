@@ -115,7 +115,7 @@ class CrossModalAttention(tf.keras.layers.Layer):
     if self.transformer:
       mlp_output = self.mlp(projected_output)
       mlp_output = self.dropout2(mlp_output, training=training)
-      projected_output = self.layernorm2(mlp_output + projected_output)
+      projected_output = self.layer_norm2(mlp_output + projected_output)
   
     return projected_output
 
@@ -227,7 +227,7 @@ class CrossModalSpatialAttention(tf.keras.layers.Layer):
     if self.transformer:
       mlp_output = self.mlp(output)
       mlp_output = self.dropout2(mlp_output, training=training)
-      output = self.layernorm2(mlp_output + output)
+      output = self.layer_norm2(mlp_output + output)
       
     return output
 
