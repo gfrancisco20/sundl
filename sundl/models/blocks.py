@@ -41,7 +41,7 @@ class CrossModalAttention(tf.keras.layers.Layer):
         ff_dim = self.size 
       self.ff_dim = ff_dim
       self.mlp = tf.keras.Sequential(
-           [tf.keras.layers.Dense(self.ff_dim, activation="siwsh"), 
+           [tf.keras.layers.Dense(self.ff_dim, activation="swish"), 
             tf.keras.layers.Dense(self.size)]
       )
       self.dropout2 = tf.keras.layers.Dropout(0.2)
@@ -175,7 +175,7 @@ class CrossModalSpatialAttention(tf.keras.layers.Layer):
         ff_dim = self.size 
       self.ff_dim = ff_dim
       self.mlp = tf.keras.Sequential(
-           [tf.keras.layers.Dense(self.ff_dim, activation="siwsh"), 
+           [tf.keras.layers.Dense(self.ff_dim, activation="swish"), 
             tf.keras.layers.Dense(self.size)]
       )
       self.dropout2 = tf.keras.layers.Dropout(0.2)
