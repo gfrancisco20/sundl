@@ -14,7 +14,9 @@ class CrossModalAttention(tf.keras.layers.Layer):
                 num_attention_heads, 
                 attention_units, 
                 residual = True, # WARNING : if True input feature dimension must be equua to num_attention_heads * attention_units
-                proj_type_3D = True  # cross-modal projection
+                proj_type_3D = False,  # cross-modal projection
+                transformer = False,
+                ff_dim = None # for first transformmer dense layer
                 ):
     super(CrossModalAttention, self).__init__()
     
@@ -32,6 +34,18 @@ class CrossModalAttention(tf.keras.layers.Layer):
     self.proj_type_3D = proj_type_3D
     
     self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+           
+    self.transformer = transformer
+    if self.transformer:
+      if ff_dim is None:
+        ff_dim = self.size 
+      self.ff_dim = ff_dim
+      self.mlp = tf.keras.Sequential(
+           [tf.keras.layers.Dense(self.ff_dim, activation="siwsh"), 
+            tf.keras.layers.Dense(self.size)]
+      )
+      self.dropout2 = tf.keras.layers.Dropout(0.2)
+      self.layer_norm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
     
     
     # DIM : [batch, modes, num_features]
@@ -62,7 +76,7 @@ class CrossModalAttention(tf.keras.layers.Layer):
     
     self.dropout = tf.keras.layers.Dropout(0.2)
       
-  def call(self, features):
+  def call(self, features, training):
     
     split_heads = self.split_heads
     # DIM : [batch, modes, num_features]
@@ -91,12 +105,17 @@ class CrossModalAttention(tf.keras.layers.Layer):
     
     # Project combined attention output
     projected_output = self.output_projection(input_mode_attention_output)
-    projected_output = self.dropout(projected_output)
+    projected_output = self.dropout(projected_output, training=training)
 
     if self.residual:
       projected_output = self.layer_norm(features + projected_output)
     else:
       projected_output = self.layer_norm(projected_output)
+      
+    if self.transformer:
+      mlp_output = self.mlp(projected_output)
+      mlp_output = self.dropout2(mlp_output, training=training)
+      projected_output = self.layernorm2(mlp_output + projected_output)
   
     return projected_output
 
@@ -108,7 +127,9 @@ class CrossModalSpatialAttention(tf.keras.layers.Layer):
                 num_attention_heads, 
                 attention_units, 
                 residual = True, # WARNING : if True input feature dimension must be equua to num_attention_heads * attention_units
-                proj_type_3D = True # cross-modal projection
+                proj_type_3D = False, # cross-modal projection
+                transformer = False,
+                ff_dim = None
                 ):
     super(CrossModalSpatialAttention, self).__init__()
     self.input_mode_dimension = input_mode_dimension
@@ -146,10 +167,22 @@ class CrossModalSpatialAttention(tf.keras.layers.Layer):
     ])                 
     
     self.final_reshape = tf.keras.layers.Reshape((self.input_mode_dimension, self.spatial_dimension, self.spatial_dimension, self.size))
-    self.dropout =  tf.keras.layers.Dropout(0.2)                                 
+    self.dropout =  tf.keras.layers.Dropout(0.2)   
+    
+    self.transformer = transformer
+    if self.transformer:
+      if ff_dim is None:
+        ff_dim = self.size 
+      self.ff_dim = ff_dim
+      self.mlp = tf.keras.Sequential(
+           [tf.keras.layers.Dense(self.ff_dim, activation="siwsh"), 
+            tf.keras.layers.Dense(self.size)]
+      )
+      self.dropout2 = tf.keras.layers.Dropout(0.2)
+      self.layer_norm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)                              
                     
       
-  def call(self, features):
+  def call(self, features, training):
     split_heads = self.split_heads
     merge_heads = self.merge_heads
     
@@ -184,12 +217,17 @@ class CrossModalSpatialAttention(tf.keras.layers.Layer):
     # Original Shape
     # DIM : [batch, modes , height , width, num_attention_heads * attention_units]
     output = self.final_reshape(output)
-    output = self.dropout(output)
+    output = self.dropout(output, training=training)
     
     if self.residual:
       output = self.layer_norm(features + output)
     else:
       output = self.layer_norm(output)
+      
+    if self.transformer:
+      mlp_output = self.mlp(output)
+      mlp_output = self.dropout2(mlp_output, training=training)
+      output = self.layernorm2(mlp_output + output)
       
     return output
 
