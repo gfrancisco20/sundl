@@ -94,7 +94,7 @@ def fileId2FnPatternList(fileIds,pathDir,channels):
     frames.append(res)
   return frames
 
-def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False):
+def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False, prec='float32', compress = False):
   # Load the raw data from the file as a string
   for idx in range(file_path.shape[0]):
     img = tf.io.read_file(file_path[idx])
@@ -104,7 +104,10 @@ def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False):
     # if img_size is not None:
     #   img = tf.image.resize(img, [img_size, img_size])
     # else:
-    img = 255.0*tf.image.convert_image_dtype(img, tf.dtypes.float32, saturate=False, name=None)
+    if compress :
+      img = tf.image.convert_image_dtype(img, 'uint8', saturate=False, name=None)
+    else:
+      img = 255.0*tf.image.convert_image_dtype(img, prec, saturate=False, name=None)
     if idx==0:
       res = img
     else:
