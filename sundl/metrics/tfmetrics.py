@@ -287,6 +287,49 @@ def notnull(x):
   # else:
   #   return x
   
+
+class BSS(RegressionMetrics):
+  def __init__(self, name='Bss', y_transform=None, labelDecoder=None, classId=None, prec = 'float32', climatology_probability = 0.5, **kwargs):
+    super().__init__(name, y_transform=y_transform, labelDecoder=labelDecoder, classId=classId, prec=prec,**kwargs)
+    self.brier_score = self.add_weight(name='brier_score', initializer='zeros')
+    self.reference_brier_score = self.add_weight(name='reference_brier_score', initializer='zeros')
+    self.count = self.add_weight(name='count', initializer='zeros')
+    self.climatology_probability = climatology_probability  # Assume 0.5 as climatology probability for binary outcomes
+
+  def update_state(self, y_true, y_pred, sample_weight=None):
+    if self.labelDecoder is not None:
+        y_true = self.labelDecoder(y_true)
+        y_pred = self.labelDecoder(y_pred)
+    if self.classId is None:
+      y_true = y_true[:, self.classId]
+      y_pred = y_pred[:, self.classId]
+    
+    # Calculate Brier Score for current batch
+    brier_score_batch = tf.reduce_mean((y_pred - y_true) ** 2)
+    
+    # Calculate Brier Score for reference model (climatology)
+    reference_brier_score_batch = tf.reduce_mean((self.climatology_probability - y_true) ** 2)
+    
+    # Update the state variables
+    self.brier_score.assign_add(brier_score_batch)
+    self.reference_brier_score.assign_add(reference_brier_score_batch)
+    self.count.assign_add(1)
+
+  def result(self):
+    # Calculate mean Brier Score and reference Brier Score
+    mean_brier_score = self.brier_score / self.count
+    mean_reference_brier_score = self.reference_brier_score / self.count
+    
+    # Calculate Brier Skill Score
+    bss = 1 - (mean_brier_score / mean_reference_brier_score)
+    return bss
+
+  def reset_states(self):
+    self.brier_score.assign(0)
+    self.reference_brier_score.assign(0)
+    self.count.assign(0)
+
+  
 class MAE_weighted(RegressionMetrics):
     def __init__(self, y_transform=None, name=None, labelDecoder=None, classId=None, prec = 'float32'):
         if name is None:

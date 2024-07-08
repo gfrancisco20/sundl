@@ -5,7 +5,7 @@ Functions to instantiate tensorflow models
 import tensorflow as tf
 
 from sundl.models.wrappers import reinstatiateOptim
-from sundl.models.blocks import Cct_Block_Functional,  CrossModalAttention, CrossModalSpatialAttention
+from sundl.models.blocks import Cct_Block_Functional, CrossModalSpatialAttention
 
 
 
@@ -17,9 +17,9 @@ __all__ = ['build_pretrained_model',
 def build_CNN_CrossModalAttention(
     num_classes = None,
     img_size = (6, 448, 448,1),
-    alreadRgbStartIndices = [3], # channels to be processed as an rgb images
+    alreadRgbStartIndices = [3], # starting indexes of channels to be processed as an rgb images
     tfModel = tf.keras.applications.efficientnet_v2.EfficientNetV2S, # rgb-cnn feature extractor
-    attentionType = 'modal', # @ 'modal', 'modal_spatial', None  (modal/temporral and modal-spatial attention)
+    hasAttention = True, # False for multimodal model without attention
     attentionDimProjType3D = True,
     residual_attention = True,
     num_attention_heads = 4, 
@@ -43,6 +43,7 @@ def build_CNN_CrossModalAttention(
     compileModel = True,
     labelSize = None, # for regression oonly, for classification use num_classes
     preprocessing = None,
+    l1_attention_reg = tf.keras.regularizers.l1(1e-3),
     **kwargs
 ):
 
@@ -103,7 +104,7 @@ def build_CNN_CrossModalAttention(
         if ct > unfreeze_top_N:
           break
 
-  if residual_attention and attentionType is not None and ensure_residual_compat:
+  if residual_attention and hasAttention and ensure_residual_compat:
     feature_reduction  = num_attention_heads * attention_units
     print('WARNING  : "residual_attention" is "True", "feature_reduction" is ignored and set to "num_attention_heads * attention_units"')
   if feature_reduction is not None:
@@ -132,32 +133,33 @@ def build_CNN_CrossModalAttention(
 
   features = tf.keras.layers.TimeDistributed(feature_extractor)(channels)
 
-  if attentionType is not None:
-    # Apply cross-modal-and-spatial self-attention
-    if attentionType == 'modal':
-      attention_layer = CrossModalAttention(input_mode_dimension = features.shape[1], 
-                                            spatial_dimension =  features.shape[2],
-                                            num_attention_heads = num_attention_heads,
-                                            attention_units = attention_units,
-                                            residual = residual_attention,
-                                            proj_type_3D = attentionDimProjType3D
-                                            )
-      # DIM : [batch, modes, attention_units * num_attention_heads]
-      attention_output = attention_layer(features)
-      # DIM : [batch, modes, 1, 1, attention_units * num_attention_heads]
-      attention_output = tf.expand_dims(tf.expand_dims(attention_output, axis=2), axis=2)
-    else:
-      print('WARNING : assumed attention type is modal_spatial')
-      attention_layer = CrossModalSpatialAttention(
-                                            input_mode_dimension = features.shape[1], 
-                                            spatial_dimension =  features.shape[2],
-                                            num_attention_heads = num_attention_heads,
-                                            attention_units = attention_units,
-                                            residual = residual_attention,
-                                            proj_type_3D = attentionDimProjType3D
-                                            )
-      # DIM : [batch, modes , height , width, num_attention_heads * attention_units]
-      attention_output = attention_layer(features)
+  if hasAttention:
+    # # Apply cross-modal-and-spatial self-attention
+    # if attentionType == 'modal':
+    #   attention_layer = CrossModalAttention(input_mode_dimension = features.shape[1], 
+    #                                         spatial_dimension =  features.shape[2],
+    #                                         num_attention_heads = num_attention_heads,
+    #                                         attention_units = attention_units,
+    #                                         residual = residual_attention,
+    #                                         proj_type_3D = attentionDimProjType3D
+    #                                         )
+    #   # DIM : [batch, modes, attention_units * num_attention_heads]
+    #   attention_output = attention_layer(features)
+    #   # DIM : [batch, modes, 1, 1, attention_units * num_attention_heads]
+    #   attention_output = tf.expand_dims(tf.expand_dims(attention_output, axis=2), axis=2)
+    # else:
+    #   print('WARNING : assumed attention type is modal_spatial')
+    attention_layer = CrossModalSpatialAttention(
+                                          input_mode_dimension = features.shape[1], 
+                                          spatial_dimension =  features.shape[2],
+                                          num_attention_heads = num_attention_heads,
+                                          attention_units = attention_units,
+                                          residual = residual_attention,
+                                          proj_type_3D = attentionDimProjType3D,
+                                          l1_reg = l1_attention_reg
+                                          )
+    # DIM : [batch, modes , height , width, num_attention_heads * attention_units]
+    attention_output = attention_layer(features)
     x = attention_output
   else:
     x = features
