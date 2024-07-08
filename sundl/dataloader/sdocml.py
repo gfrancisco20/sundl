@@ -94,8 +94,31 @@ def fileId2FnPatternList(fileIds,pathDir,channels):
     frames.append(res)
   return frames
 
+def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False):
+  # Load the raw data from the file as a string
+  for idx in range(file_path.shape[0]):
+    img = tf.io.read_file(file_path[idx])
+    # Convert the compressed string to a 3D uint8 tensor
+    img = tf.io.decode_jpeg(img, channels=0)
+    # !! Resize automatically converts to float32 while preserving original values, while cast normalize values between [0-1]
+    # if img_size is not None:
+    #   img = tf.image.resize(img, [img_size, img_size])
+    # else:
+    img = 255.0*tf.image.convert_image_dtype(img, tf.dtypes.float32, saturate=False, name=None)
+    if idx==0:
+      res = img
+    else:
+      res = tf.concat([res,img],axis=-1)
+  if isGray:
+    if sepPosNeg:
+      pos = tf.math.maximum(res,127)
+      neg = tf.math.minimum(res,127)
+      res =  tf.concat([neg,res,pos],axis=-1)
+    elif gray2RGB:
+      res = tf.repeat(res,repeats=3,axis=-1)
+  return res
 
-def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False, prec='float32', compress = False):
+def parse_video(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False, prec='float32', compress = False):
   # Load the raw data from the file as a string
   for frameIdx in range(file_path.shape[0]):
     for idx in range(file_path.shape[1]):
@@ -423,7 +446,7 @@ def builDS_video_feature(
   im = np.array(Image.open(filenames[0][0][0]))
   isGray = True if len(im.shape)==2 else False
 
-  images_ds = filenames_ds.map(lambda x: parse_image(x,pathDir,gray2RGB, isGray, sepPosNeg, prec, compress), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
+  images_ds = filenames_ds.map(lambda x: parse_video(x,pathDir,gray2RGB, isGray, sepPosNeg, prec, compress), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
 
   if shape3d:
     # TODO : adapt to videos

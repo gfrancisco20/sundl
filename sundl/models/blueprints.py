@@ -508,6 +508,8 @@ def build_pretrained_model(
     regression = True,
     scaledRegression = False,
     unfreeze_top_N = None,
+    unfreeze_neurons = True,
+    unfreeze_BN = True,
     modelName = 'PretrainedModel',
     feature_reduction = None,
     lastTfConv = 'top_conv',
@@ -543,11 +545,17 @@ def build_pretrained_model(
     # We unfreeze the top N layers while leaving BatchNorm layers frozen
     if unfreeze_top_N == 'all':
       for layer in model.layers:
+        if isinstance(layer, tf.keras.layers.BatchNormalization) and unfreeze_BN:
+          layer.trainable = True
+        elif not isinstance(layer, tf.keras.layers.BatchNormalization) and unfreeze_neurons:
           layer.trainable = True
     else:
       ct = 0
       for layer in reversed(model.layers):#[-unfreeze_top_N:]:
-        if not isinstance(layer, tf.keras.layers.BatchNormalization):
+        if not isinstance(layer, tf.keras.layers.BatchNormalization) and unfreeze_neurons:
+          layer.trainable = True
+          ct+=1
+        elif isinstance(layer, tf.keras.layers.BatchNormalization) and unfreeze_BN:
           layer.trainable = True
           ct+=1
         if ct > unfreeze_top_N:
@@ -569,7 +577,7 @@ def build_pretrained_model(
     else:
       top_conv = feature_reduction(preConvInput)
     top_conv = tf.keras.layers.BatchNormalization(name =  f'top_bn')(top_conv)
-    top_conv = tf.keras.layers.Activation(activation='relu', name =  f'top_activation')(top_conv)
+    top_conv = tf.keras.layers.Activation(activation='swish', name =  f'top_activation')(top_conv)
     model = tf.keras.models.Model(
      model.input ,
      top_conv
