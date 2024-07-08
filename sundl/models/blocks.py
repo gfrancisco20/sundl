@@ -7,6 +7,41 @@ import numpy as np
 
 import tensorflow as tf
 
+class VerticalFlipAug3D(tf.keras.layers.Layer):
+  # for images of shape (m, height, width, 1)
+  def __init__(self, **kwargs):
+    super(VerticalFlipAug3D, self).__init__(**kwargs)
+    self.flip = tf.keras.layers.RandomFlip("vertical")
+    self.permute = tf.keras.layers.Permute((4,2,3,1))
+    self.permute2 = tf.keras.layers.Permute((1,3,2,4))
+    self.permute3 = tf.keras.layers.Permute((2,1,3,4))
+
+
+  def call(self, inputs, training=False):
+    if training:
+      inputs = self.permute(inputs)
+      inputs = tf.squeeze(inputs,  axis=[i for i in range(1, len(inputs.shape)) if inputs.shape[i] == 1])
+      inputs = self.flip(inputs)
+      inputs = tf.expand_dims(inputs, axis=-1)
+      inputs = self.permute2(inputs)
+      inputs = self.permute3(inputs)
+      return inputs
+    else:
+      return inputs
+
+class VerticalFlipAug2D(tf.keras.layers.Layer):
+  # for images of shape (m, height, width, 1)
+  def __init__(self, **kwargs):
+    super(VerticalFlipAug2D, self).__init__(**kwargs)
+    self.flip = tf.keras.layers.RandomFlip("vertical")
+
+  def call(self, inputs, training=False):
+    if training:
+      inputs = self.flip(inputs)
+      return inputs
+    else:
+      return inputs
+
 # class CrossModalAttention(tf.keras.layers.Layer):
 #   def __init__(self, 
 #                 input_mode_dimension, # modal or also time dimension
