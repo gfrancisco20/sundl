@@ -1,7 +1,3 @@
-"""
-"""
-
-
 from glob import glob
 import pathlib
 import time
@@ -41,6 +37,7 @@ def castDsFunction(dsElem, castType):
 def configure_for_performance(ds, batch_size, shuffle_buffer_size=1000, shuffle = False, cache=True, prefetch=True, cachePath = '',cast= None,weight=True):
   if cache:
     ds = ds.cache(cachePath)
+  print(cast, weight)
   if cast is not None:
     if weight:
       ds = ds.map(lambda x,y,z: castDsFunction((x,y,z), cast))
@@ -120,6 +117,7 @@ def parse_image(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False, pr
     elif gray2RGB:
       res = tf.repeat(res,repeats=3,axis=-1)
   return res
+
 
 def parse_video(file_path,pathDir, gray2RGB, isGray = False, sepPosNeg=False, prec='float32', compress = False):
   # Load the raw data from the file as a string
@@ -518,6 +516,7 @@ def builDS_video_feature(
     cast = prec
   else:
     cast = None
+    
   ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cachePath, cast, weightByClass)
   # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath, cast, weightByClass)
   dfTimeseries_updated = dfTimeseries[keeped].copy()
@@ -874,7 +873,9 @@ def builDS_image_feature(
     cast = prec
   else:
     cast = None
-  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, cachePath, weightByClass)
+    
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cachePath, cast, weightByClass)
+  # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, cachePath, weightByClass)
   dfTimeseries_updated = dfTimeseries[keeped].copy()
   return ds, missing_file_idx, missing_file_regexp, dfTimeseries_updated
 
@@ -1266,7 +1267,7 @@ def builDS_ts_feature(
       }, c
     ds = ds.map(structure_ds)
 
-
+  
   ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cachePath, None, weightByClass)
   # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath, weightByClass)
   # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath)
