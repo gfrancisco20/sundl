@@ -873,7 +873,7 @@ def builDS_image_feature(
     cast = prec
   else:
     cast = None
-  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, weightByClass)
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, cachePath, weightByClass)
   dfTimeseries_updated = dfTimeseries[keeped].copy()
   return ds, missing_file_idx, missing_file_regexp, dfTimeseries_updated
 
@@ -888,6 +888,7 @@ def buildDS_persistant_MTS(
                 labelCol          = 'mpf',
                 prefetch          = True,
                 cache             = True,
+                cachePath         = '',
                 compress          = False,
                 shuffle           = True,
                 uncachedShuffBuff = 1000,
@@ -1025,7 +1026,9 @@ def buildDS_persistant_MTS(
     cast = prec
   else:
     cast = None
-  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, weightByClass)
+  
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, cachePath, weightByClass)
+  # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, weightByClass)
   # dfTimeseries_updated = dfTimeseries[keeped]
   dfTimeseries_updated = dfTimeseries.copy()
   return ds, [], [], dfTimeseries_updated
@@ -1262,7 +1265,8 @@ def builDS_ts_feature(
     ds = ds.map(structure_ds)
 
 
-  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath)
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath, weightByClass)
+  # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath)
   dfTimeseries_updated = dfTimeseries.copy()
   return ds, [], [], dfTimeseries_updated
 
