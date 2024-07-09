@@ -38,7 +38,7 @@ def castDsFunction(dsElem, castType):
 
 
 
-def configure_for_performance(ds, batch_size, shuffle_buffer_size=1000, shuffle = False, cache=True, prefetch=True, epochs = None, cachePath = '',cast= None,weight=True):
+def configure_for_performance(ds, batch_size, shuffle_buffer_size=1000, shuffle = False, cache=True, prefetch=True, cachePath = '',cast= None,weight=True):
   if cache:
     ds = ds.cache(cachePath)
   if cast is not None:
@@ -518,7 +518,8 @@ def builDS_video_feature(
     cast = prec
   else:
     cast = None
-  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath, cast, weightByClass)
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cachePath, cast, weightByClass)
+  # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath, cast, weightByClass)
   dfTimeseries_updated = dfTimeseries[keeped].copy()
   return ds, missing_file_idx, missing_file_regexp, dfTimeseries_updated
 
@@ -1027,7 +1028,8 @@ def buildDS_persistant_MTS(
   else:
     cast = None
   
-  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, cachePath, weightByClass)
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cachePath, cast, weightByClass)
+  # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, cachePath, weightByClass)
   # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cast, weightByClass)
   # dfTimeseries_updated = dfTimeseries[keeped]
   dfTimeseries_updated = dfTimeseries.copy()
@@ -1265,7 +1267,8 @@ def builDS_ts_feature(
     ds = ds.map(structure_ds)
 
 
-  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath, weightByClass)
+  ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cachePath, None, weightByClass)
+  # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath, weightByClass)
   # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath)
   dfTimeseries_updated = dfTimeseries.copy()
   return ds, [], [], dfTimeseries_updated
