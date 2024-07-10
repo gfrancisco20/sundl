@@ -305,15 +305,15 @@ class BSS(RegressionMetrics):
       y_pred = y_pred[:, self.classId]
     
     # Calculate Brier Score for current batch
-    brier_score_batch = tf.reduce_mean((y_pred - y_true) ** 2)
+    brier_score_batch = tf.reduce_sum((y_pred - y_true) ** 2)
     
     # Calculate Brier Score for reference model (climatology)
-    reference_brier_score_batch = tf.reduce_mean((self.climatology_probability - y_true) ** 2)
+    reference_brier_score_batch = tf.reduce_sum((self.climatology_probability - y_true) ** 2)
     
     # Update the state variables
-    self.brier_score.assign_add(brier_score_batch)
-    self.reference_brier_score.assign_add(reference_brier_score_batch)
-    self.count.assign_add(1)
+    self.brier_score.assign_add(tf.cast(brier_score_batch,dtype =  self.brier_score.dtype))
+    self.reference_brier_score.assign_add(tf.cast(reference_brier_score_batch,dtype =  self.reference_brier_score.dtype))
+    self.count.assign_add(tf.reduce_sum(tf.cast(y_true==y_true, dtype=self.count.dtype)))
 
   def result(self):
     # Calculate mean Brier Score and reference Brier Score
@@ -324,11 +324,10 @@ class BSS(RegressionMetrics):
     bss = 1 - (mean_brier_score / mean_reference_brier_score)
     return bss
 
-  def reset_states(self):
+  def reset_state(self):
     self.brier_score.assign(0)
     self.reference_brier_score.assign(0)
     self.count.assign(0)
-
   
 class MAE_weighted(RegressionMetrics):
     def __init__(self, y_transform=None, name=None, labelDecoder=None, classId=None, prec = 'float32'):
