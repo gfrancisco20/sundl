@@ -520,6 +520,7 @@ def build_pretrained_model(
     compileModel = True,
     labelSize = None, # for regression oonly, for classification use num_classes
     preprocessing = None,
+    pred_L1_reg=None,
     **kwargs
 ):
 
@@ -605,14 +606,14 @@ def build_pretrained_model(
       labelSize = 1
     if scaledRegression:
       # Case where regression labels are scaled in [0,1] for potentially more stability)
-      output = tf.keras.layers.Dense(labelSize, activation="sigmoid", name="pred")(x)
+      output = tf.keras.layers.Dense(labelSize, activation="sigmoid", name="pred", kernel_regularizer =  pred_L1_reg)(x)
     else:
-      output = tf.keras.layers.Dense(labelSize, name="pred", )(x)
+      output = tf.keras.layers.Dense(labelSize, name="pred", kernel_regularizer =  pred_L1_reg )(x)
       # TODO : add baseeline case to otheer otpt kinds
       if scalarFeaturesSize is not None and scalarAgregation == 'baseline':
         output = tf.keras.layers.Add()([output, scalar_input])
   else:
-    output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred")(x)
+    output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred", kernel_regularizer =  pred_L1_reg)(x)
   
     
   # Compile
