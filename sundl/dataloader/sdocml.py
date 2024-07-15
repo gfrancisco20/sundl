@@ -191,7 +191,7 @@ def builDS_video_feature(
   shuffle           = True,
   uncachedShuffBuff = 1000,
   img_size          = None,
-  crop_coord        = None,
+  crop_coord        = (0,3*112,448,112), #. left, top, right, bottom
   num_classes       = 2,
   gray2RGB          = False,
   sepPosNeg         = False,
@@ -317,7 +317,9 @@ def builDS_video_feature(
     dfTimeseries = dfTimeseries[dfTimeseries.index.isin(samples.index)]
 
   if dates2exclude is not None:
+    n = len(dfTimeseries)
     dfTimeseries = dfTimeseries[~dfTimeseries.index.isin(dates2exclude)]
+    print(f'WARNING : {n-len(dfTimeseries)} samples droped for corupted main date')
 
   if not cache and shuffle:
     # necessary shuffle sumplement with small buffer
@@ -328,6 +330,16 @@ def builDS_video_feature(
 
   dfTimeseries = dfTimeseries.reset_index()
   dfTimeseries['id'] = dfTimeseries['timestamp'].apply(lambda x: [(x +  pd.DateOffset(hours = int(frame_offset))).strftime('%Y/%m/%d/%Y%m%d_%H%M') for frame_offset in ts_off_frame_hours])
+
+  ###########################@
+  if dates2exclude is not None:
+    n = len(dfTimeseries)
+    # dfTimeseries['hasCorrupted'] = dfTimeseries['id'].apply(lambda x : np.sum([datetime.datetime.strptime(date,'%Y/%m/%d/%Y%m%d_%H%M') in dates2exclude for date in x])>0)
+    dfTimeseries['hasCorrupted'] = dfTimeseries['timestamp'].apply(lambda x : np.sum([date in dates2exclude for date in [x+  pd.DateOffset(hours = int(frame_offset)) for frame_offset in ts_off_frame_hours]])>0)
+    dfTimeseries = dfTimeseries[dfTimeseries['hasCorrupted']==False]
+    print(f'WARNING : {n-len(dfTimeseries)} samples droped for corupted frames')
+  ###########################@
+
   # dfTimeseries['pth'] = dfTimeseries['timestamp'].apply(lambda x: x.strftime('%Y/%m/%d'))
   dfTimeseries = dfTimeseries.set_index('timestamp')
   # fullPthIds = dfTimeseries[['pth','id']].apply(lambda x: [x['pth']+'/'+x['id'][i] for i in range(len(x['id']))],axis=1)
@@ -447,7 +459,7 @@ def builDS_video_feature(
   im = np.array(Image.open(filenames[0][0][0]))
   isGray = True if len(im.shape)==2 else False
 
-  images_ds = filenames_ds.map(lambda x: parse_video(x,pathDir,gray2RGB, isGray, sepPosNeg, prec, compress), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
+  images_ds = filenames_ds.map(lambda x: parse_image(x,pathDir,gray2RGB, isGray, sepPosNeg, prec, compress), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
 
   if shape3d:
     # TODO : adapt to videos
@@ -462,32 +474,34 @@ def builDS_video_feature(
       left, top, right, bottom = crop_coord
       imHeight = top - bottom
       imWidth = right - left
+      print('offset_height','offset_width','target_height','target_width')
+      print(top-imHeight,left,imHeight,imWidth)
       images_ds = images_ds.map(lambda x: tf.image.crop_to_bounding_box(x,
-                                                                        offset_height = top,
+                                                                        offset_height = top-imHeight,
                                                                         offset_width = left,
                                                                         target_height = imHeight,
                                                                         target_width = imWidth
                                                                         ) ,num_parallel_calls=AUTOTUNE)
-    if imHeight != img_size[0] or imWidth != img_size[1]:
-      if imHeight == imWidth and img_size[0] != img_size[1] and crop_coord is None:
-        # default cropping for flare pole
-        if img_size[1] > img_size[0]: #  width > height
-          top = int((img_size[1] + img_size[0]) / 2)
-          left = int(img_size[1])
-        else:
-          top = int(img_size[0])
-          left = int((img_size[1] + img_size[0]) / 2)
-        images_ds = images_ds.map(lambda x: tf.image.crop_to_bounding_box(x,
-                                                                        offset_height = top,
-                                                                        offset_width = left,
-                                                                        target_height =  img_size[0],
-                                                                        target_width = img_size[1]
-                                                                        ) ,num_parallel_calls=AUTOTUNE)
-      images_ds = images_ds.map(lambda x: tf.image.resize(x,
-                                                          size = (img_size[0], img_size[1]),
-                                                          method=tf.image.ResizeMethod.BICUBIC, #BILINEAR,
-                                                          preserve_aspect_ratio=True
-                                                          ) ,num_parallel_calls=AUTOTUNE)
+    # if imHeight != img_size[0] or imWidth != img_size[1]:
+    #   if imHeight == imWidth and img_size[0] != img_size[1] and crop_coord is None:
+    #     # default cropping for flare pole
+    #     if img_size[1] > img_size[0]: #  width > height
+    #       top = int((img_size[1] + img_size[0]) / 2)
+    #       left = int(img_size[1])
+    #     else:
+    #       top = int(img_size[0])
+    #       left = int((img_size[1] + img_size[0]) / 2)
+    #     images_ds = images_ds.map(lambda x: tf.image.crop_to_bounding_box(x,
+    #                                                                     offset_height = top,
+    #                                                                     offset_width = left,
+    #                                                                     target_height =  img_size[0],
+    #                                                                     target_width = img_size[1]
+    #                                                                     ) ,num_parallel_calls=AUTOTUNE)
+    #   images_ds = images_ds.map(lambda x: tf.image.resize(x,
+    #                                                       size = (img_size[0], img_size[1]),
+    #                                                       method=tf.image.ResizeMethod.BICUBIC, #BILINEAR,
+    #                                                       preserve_aspect_ratio=True
+    #                                                       ) ,num_parallel_calls=AUTOTUNE)
     #images_ds = images_ds.map(lambda x: tf.expand_dims(tf.transpose(x,[0,3,1,2]), axis=-1),num_parallel_calls=AUTOTUNE)
   if ts_off_scalar_hours is not None:
     if weightByClass:
@@ -516,12 +530,9 @@ def builDS_video_feature(
     cast = prec
   else:
     cast = None
-    
   ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, cachePath, cast, weightByClass)
-  # ds = configure_for_performance(ds, batch_size, shuffle_buffer_size, shuffle, cache, prefetch, None, cachePath, cast, weightByClass)
   dfTimeseries_updated = dfTimeseries[keeped].copy()
   return ds, missing_file_idx, missing_file_regexp, dfTimeseries_updated
-
 # ds,_,_,_ = builDS_video_feature(
 #   pathDir = PATH_IMAGES,
 #   channels = list(modelChannels.keys()),
