@@ -459,7 +459,7 @@ def builDS_video_feature(
   im = np.array(Image.open(filenames[0][0][0]))
   isGray = True if len(im.shape)==2 else False
 
-  images_ds = filenames_ds.map(lambda x: parse_image(x,pathDir,gray2RGB, isGray, sepPosNeg, prec, compress), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
+  images_ds = filenames_ds.map(lambda x: parse_video(x,pathDir,gray2RGB, isGray, sepPosNeg, prec, compress), num_parallel_calls=AUTOTUNE) #.batch(batch_size)
 
   if shape3d:
     # TODO : adapt to videos
