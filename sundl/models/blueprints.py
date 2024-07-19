@@ -521,6 +521,7 @@ def build_pretrained_model(
     labelSize = None, # for regression oonly, for classification use num_classes
     preprocessing = None,
     pred_L1_reg=None,
+    local_pred = False,
     **kwargs
 ):
 
@@ -591,30 +592,45 @@ def build_pretrained_model(
   #   x = feature_reduction(x)
 
   # Output layers
-  if globalPooling:
-    x = tf.keras.layers.GlobalAveragePooling2D(name="avg_pool_vectorisation")(x)
-    x = tf.keras.layers.BatchNormalization()(x)
+  if local_pred:
+    h = x.shape[1]
+    w = x.shape[2]
+    x = tf.keras.layers.Reshape((h*w, x.shape[-1]))(x)
+    MLP = tf.keras.Sequential([
+      tf.keras.layers.Dropout(0.2),
+      tf.keras.layers.Dense(1, activation="sigmoid", name="local_pred", kernel_regularizer=pred_L1_reg)
+    # Global average pooling
+    ])
+    x = tf.keras.layers.TimeDistributed(MLP)(x)
+    x = tf.keras.layers.Reshape((h, w, x.shape[-1]))(x)
+    x = tf.keras.layers.GlobalMaxPooling2D()(x)
+    output_final = tf.keras.layers.Flatten()(x)
+    output = tf.concat([tf.cast(1,dtype=output_final.dtype)-output_final,output_final],axis=1)
   else:
-    x = tf.keras.layers.Flatten(name=f'flatten')(x)
-  if scalarFeaturesSize is not None and scalarAgregation == 'feature':
-    x = tf.keras.layers.Concatenate(axis=1)([x,tf.keras.layers.BatchNormalization()(scalar_input)])
-  # x = tf.keras.layers.BatchNormalization()(x)
-  top_dropout_rate = 0.2
-  x = tf.keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
-  if regression:
-    if labelSize is None:
-      labelSize = 1
-    if scaledRegression:
-      # Case where regression labels are scaled in [0,1] for potentially more stability)
-      output = tf.keras.layers.Dense(labelSize, activation="sigmoid", name="pred", kernel_regularizer =  pred_L1_reg)(x)
+    if globalPooling:
+      x = tf.keras.layers.GlobalAveragePooling2D(name="avg_pool_vectorisation")(x)
+      x = tf.keras.layers.BatchNormalization()(x)
     else:
-      output = tf.keras.layers.Dense(labelSize, name="pred", kernel_regularizer =  pred_L1_reg )(x)
-      # TODO : add baseeline case to otheer otpt kinds
-      if scalarFeaturesSize is not None and scalarAgregation == 'baseline':
-        output = tf.keras.layers.Add()([output, scalar_input])
-  else:
-    output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred", kernel_regularizer =  pred_L1_reg)(x)
-  
+      x = tf.keras.layers.Flatten(name=f'flatten')(x)
+    if scalarFeaturesSize is not None and scalarAgregation == 'feature':
+      x = tf.keras.layers.Concatenate(axis=1)([x,tf.keras.layers.BatchNormalization()(scalar_input)])
+    # x = tf.keras.layers.BatchNormalization()(x)
+    top_dropout_rate = 0.2
+    x = tf.keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
+    if regression:
+      if labelSize is None:
+        labelSize = 1
+      if scaledRegression:
+        # Case where regression labels are scaled in [0,1] for potentially more stability)
+        output = tf.keras.layers.Dense(labelSize, activation="sigmoid", name="pred", kernel_regularizer =  pred_L1_reg)(x)
+      else:
+        output = tf.keras.layers.Dense(labelSize, name="pred", kernel_regularizer =  pred_L1_reg )(x)
+        # TODO : add baseeline case to otheer otpt kinds
+        if scalarFeaturesSize is not None and scalarAgregation == 'baseline':
+          output = tf.keras.layers.Add()([output, scalar_input])
+    else:
+      output = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred", kernel_regularizer =  pred_L1_reg)(x)
+    
     
   # Compile
   if scalarFeaturesSize is not None:
