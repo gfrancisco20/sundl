@@ -512,9 +512,11 @@ def build_pretrained_model(
     unfreeze_BN = True,
     modelName = 'PretrainedModel',
     feature_reduction = None,
+    red_type = 'replace',
     lastTfConv = 'top_conv',
     alpha = 0.5,
     globalPooling = True,
+    globalPoolingType = 'avg',
     scalarFeaturesSize = None,
     scalarAgregation = 'feature', # @['feature', 'baseline']
     compileModel = True,
@@ -566,7 +568,10 @@ def build_pretrained_model(
   if feature_reduction is not None:
     for layer in model.layers:
       if layer.name == lastTfConv:
-        preConvInput = layer.input
+        if red_type == 'replace':
+          preConvInput = layer.input
+        else:
+          preConvInput = layer.output
     # print(feature_reduction)
     if type(feature_reduction) == int:
       top_conv = tf.keras.layers.Conv2D(name = 'top_conv',
@@ -608,7 +613,10 @@ def build_pretrained_model(
     output = tf.concat([tf.cast(1,dtype=output_final.dtype)-output_final,output_final],axis=1)
   else:
     if globalPooling:
-      x = tf.keras.layers.GlobalAveragePooling2D(name="avg_pool_vectorisation")(x)
+      if globalPoolingType == 'avg':
+        x = tf.keras.layers.GlobalAveragePooling2D(name="avg_pool_vectorisation")(x)
+      else:
+        x = tf.keras.layers.GlobalMaxPooling2D(name="avg_pool_vectorisation")(x)
       x = tf.keras.layers.BatchNormalization()(x)
     else:
       x = tf.keras.layers.Flatten(name=f'flatten')(x)
