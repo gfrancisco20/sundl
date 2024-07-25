@@ -570,11 +570,13 @@ def build_pretrained_model(
       if layer.name == lastTfConv:
         if red_type == 'replace':
           preConvInput = layer.input
+          tagLayerSfx = ''
         else:
           preConvInput = layer.output
+          tagLayerSfx = '-f'
     # print(feature_reduction)
     if type(feature_reduction) == int:
-      top_conv = tf.keras.layers.Conv2D(name = 'top_conv',
+      top_conv = tf.keras.layers.Conv2D(name = f'top_conv{tagLayerSfx}',
                                   filters = feature_reduction,
                                   kernel_size = (3,3),
                                   # strides = [1,1],
@@ -583,8 +585,8 @@ def build_pretrained_model(
                                   )(preConvInput)
     else:
       top_conv = feature_reduction(preConvInput)
-    top_conv = tf.keras.layers.BatchNormalization(name =  f'top_bn')(top_conv)
-    top_conv = tf.keras.layers.Activation(activation='swish', name =  f'top_activation')(top_conv)
+    top_conv = tf.keras.layers.BatchNormalization(name =  f'top_bn{tagLayerSfx}')(top_conv)
+    top_conv = tf.keras.layers.Activation(activation='swish', name =  f'top_activation{tagLayerSfx}')(top_conv)
     model = tf.keras.models.Model(
      model.input ,
      top_conv
