@@ -572,10 +572,14 @@ def build_pretrained_model(
           preConvInput = layer.input
           tagLayerSfx = ''
         else:
+          layer._name = 'pre-final-conv'
           preConvInput = layer.output
-          tagLayerSfx = '-f'
+          # tagLayerSfx = '-f'
+          tagLayerSfx = ''
     # print(feature_reduction)
     if type(feature_reduction) == int:
+      if red_type == 'replace':
+        preConvInput = tf.keras.layers.Activation(activation='swish', name =  f'pre_top_activation')(preConvInput)
       top_conv = tf.keras.layers.Conv2D(name = f'top_conv{tagLayerSfx}',
                                   filters = feature_reduction,
                                   kernel_size = (3,3),
