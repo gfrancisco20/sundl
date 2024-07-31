@@ -280,7 +280,7 @@ class RegressionMetrics(tf.keras.metrics.Metric):#,ABC):
 
 def notnull(x):
   # isNull = tf.math.reduce_sum(tf.cast(tf.math.equal(x,0.0),self.prec))
-  isNull = float(tf.math.equal(x,0.0))
+  isNull = tf.cast(tf.math.equal(x,0.0),dtype='float')
   return isNull * epsilon + (1.0-isNull) * x
   # if x==0:
   #   return epsilon # tf.keras.backend.epsilon()
