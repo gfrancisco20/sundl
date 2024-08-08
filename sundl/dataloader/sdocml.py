@@ -23,12 +23,22 @@ def castDsFunction(dsElem, castType):
   if len(dsElem) == 3:
     image, label, weight = dsElem
     # return (tf.cast(image, castType), tf.cast(label, castType), tf.cast(weight, castType))
-    return (tf.cast(image, castType), label, weight)
-  # Otherwise assume the element has two components (image, label)
+    if type(image) == dict:
+      for inputKey in image.keys():
+        image[inputKey] = tf.cast(image[inputKey], castType)
+      return (image, label, weight)
+    else:
+      return (tf.cast(image, castType), label, weight)
+  # Otherwise assume the element has two components (, image, label)
   elif len(dsElem) == 2:
     image, label = dsElem
     # return (tf.cast(image, castType), tf.cast(label, castType))
-    return (tf.cast(image, castType), label)
+    if type(image) == dict:
+      for inputKey in image.keys():
+        image[inputKey] = tf.cast(image[inputKey], castType)
+      return (image, label)
+    else:
+      return (tf.cast(image, castType), label)
   else:
     raise ValueError("Dataset elements must be tuples of length 2 or 3 (image, label, [weight]).")
 
