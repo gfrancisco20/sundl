@@ -370,6 +370,7 @@ def builDS_video_feature(
   keeped = np.ones(len(dfTimeseries), dtype=bool)
   # dfTimeseries = dfTimeseries.set_index('id')
   dfTimeseries = dfTimeseries.reset_index()
+  ctNan=0
   for idx,patterns in enumerate(filenamepatterns):
     # image path retrieval
     try:
@@ -392,6 +393,10 @@ def builDS_video_feature(
       filenames.append(files)
 
       label = dfTimeseries.loc[idx,[f'label_{offLabel}'  for offLabel in ts_off_label_hours]].values
+      if np.isnan(label).sum()>0:
+        ctNan+=1
+        filenames.pop()
+        raise Exception("NaN label : removed from ds")
       labels.append(label)
       if ts_off_scalar_hours is not None:
         scalar = dfTimeseries.loc[idx,[f'scalar_{offScalar}'  for offScalar in ts_off_scalar_hours]].values
@@ -405,6 +410,7 @@ def builDS_video_feature(
       keeped[idx] = False
       missing_file_idx.append(idx)
       missing_file_regexp.append(pattern[0])
+  print(f'WARNING : {ctNan} NaN labels removed')
   labels = np.array(labels)
   labels = labels.astype(prec)
   if ts_off_scalar_hours is not None:
