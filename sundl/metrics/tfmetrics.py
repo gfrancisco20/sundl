@@ -466,7 +466,7 @@ class RMSE(RegressionMetrics):
     else:
       errs = tf.reduce_sum(tf.square(y_true[:,self.classId]-y_pred[:,self.classId]))
     # size = tf.cast(y_pred.shape[0],self.prec)
-    if self.classId is not None:
+    if self.classId is not None or len(y_pred.shape)<3:
       size = tf.cast(len(y_pred),'float32')
     else:
       size = tf.cast(y_pred.shape[0]*y_pred.shape[1],'float32')
