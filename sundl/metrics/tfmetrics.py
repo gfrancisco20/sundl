@@ -450,6 +450,9 @@ class RMSE(RegressionMetrics):
     super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId, prec=prec)
     self.errs = self.add_weight(name='errs', initializer='zeros')
     self.size = self.add_weight(name='size', initializer='zeros')
+    if self.errs.dtype != 'float32':
+      self.errs = tf.cast(self.errs,'float32') # MSE typically doesn't fit in float16
+      self.size = tf.cast(self.size,'float32')
     self.prec = prec 
   
   def update_state(self, y_true, y_pred, sample_weight=None):
