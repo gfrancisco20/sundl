@@ -22,6 +22,8 @@ import tensorflow as tf
 
 epsilon = 1e-10
 
+
+
 class MultiClassMetrics(tf.keras.metrics.Metric):#,ABC):
   def __init__(self, 
                name, 
@@ -448,8 +450,14 @@ class RMSE(RegressionMetrics):
     super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId, prec=prec)
     self.errs = self.add_weight(name='errs', initializer='zeros')
     self.size = self.add_weight(name='size', initializer='zeros')
+    self.prec = prec 
   
   def update_state(self, y_true, y_pred, sample_weight=None):
+    # mixed prec handling
+    self.prec = y_pred.dtype
+    if self.prec != 'float32':
+      tf.cast(y_true,'float32') # MSE typically doesn't fit in float16
+      tf.cast(y_pred,'float32')
     if self.labelDecoder is not None:
       y_true = self.labelDecoder(y_true)
       y_pred = self.labelDecoder(y_pred)
@@ -459,14 +467,16 @@ class RMSE(RegressionMetrics):
       errs = tf.reduce_sum(tf.square(y_true[:,self.classId]-y_pred[:,self.classId]))
     # size = tf.cast(y_pred.shape[0],self.prec)
     if self.classId is not None:
-      size = tf.cast(len(y_pred),self.prec)
+      size = tf.cast(len(y_pred),'float32')
     else:
-      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],self.prec)
+      size = tf.cast(y_pred.shape[0]*y_pred.shape[1],'float32')
     self.errs.assign_add(errs) 
     self.size.assign_add(size)    
   
   def result(self):
-    return tf.sqrt(self.errs / self.size)
+    return tf.cast(tf.sqrt(self.errs / self.size), self.prec)
+  
+  
   
 class R2(RegressionMetrics):
   def __init__(self, y_transform = None, name = None, labelDecoder = None, classId = None, prec = 'float32'):
