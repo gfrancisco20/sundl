@@ -448,8 +448,8 @@ class RMSE(RegressionMetrics):
   def __init__(self, y_transform = None, name = None, labelDecoder = None, classId = None, prec = 'float32'):
     if name is None: name = 'RMSE'
     super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId, prec=prec)
-    self.errs = self.add_weight(name='errs', initializer='zeros')
-    self.size = self.add_weight(name='size', initializer='zeros')
+    self.errs = self.add_weight(name='errs', initializer='zeros', dtype='float32')
+    self.size = self.add_weight(name='size', initializer='zeros', dtype='float32')
     if self.errs.dtype != 'float32':
       self.errs = tf.cast(self.errs,'float32') # MSE typically doesn't fit in float16
       self.size = tf.cast(self.size,'float32')
@@ -479,53 +479,100 @@ class RMSE(RegressionMetrics):
   def result(self):
     return tf.cast(tf.sqrt(self.errs / self.size), self.prec)
   
-  
-  
 class R2(RegressionMetrics):
-  def __init__(self, y_transform = None, name = None, labelDecoder = None, classId = None, prec = 'float32'):
-    if name is None: name = 'r2'
-    super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId, prec=prec)
-    self.size   = self.add_weight(name='size', initializer='zeros')
-    self.yTrue  = self.add_weight(name='yTrue', initializer='zeros')
-    self.yTrue2 = self.add_weight(name='yTrue2', initializer='zeros')
-    self.yPred  = self.add_weight(name='yPred', initializer='zeros')
-    self.yPred2 = self.add_weight(name='yPred2', initializer='zeros')
-    self.prod   = self.add_weight(name='prod', initializer='zeros')
+    def __init__(self, name='r2', **kwargs):
+        super(R2, self).__init__(name=name, **kwargs)
+        self.sum_xy = self.add_weight(name='sum_xy', initializer='zeros', dtype='float32')
+        self.sum_x = self.add_weight(name='sum_x', initializer='zeros', dtype='float32')
+        self.sum_y = self.add_weight(name='sum_y', initializer='zeros', dtype='float32')
+        self.sum_x2 = self.add_weight(name='sum_x2', initializer='zeros', dtype='float32')
+        self.sum_y2 = self.add_weight(name='sum_y2', initializer='zeros', dtype='float32')
+        self.n = self.add_weight(name='n', initializer='zeros')
+        
+        if self.sum_xy.dtype != 'float32':
+          self.sum_xy = tf.cast(self.sum_xy,'float32') # MSE typically doesn't fit in float16
+          self.sum_x = tf.cast(self.sum_x,'float32')
+          self.sum_y = tf.cast(self.sum_y,'float32')
+          self.sum_x2 = tf.cast(self.sum_x2,'float32')
+          self.sum_y2 = tf.cast(self.sum_y2,'float32')
+          self.n = tf.cast(self.n,'float32')
+        self.prec = None
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        self.prec = y_pred.dtype
+        if self.prec != 'float32':
+          y_true = tf.cast(y_true, 'float32')
+          y_pred = tf.cast(y_pred, 'float32')
+        
+        self.sum_xy.assign_add(tf.reduce_sum(y_true * y_pred))
+        self.sum_x.assign_add(tf.reduce_sum(y_pred))
+        self.sum_y.assign_add(tf.reduce_sum(y_true))
+        self.sum_x2.assign_add(tf.reduce_sum(tf.square(y_pred)))
+        self.sum_y2.assign_add(tf.reduce_sum(tf.square(y_true)))
+        self.n.assign_add(tf.cast(tf.size(y_true), self.dtype))
+
+    def result(self):
+        numerator = (self.n * self.sum_xy) - (self.sum_x * self.sum_y)
+        denominator = tf.sqrt(
+            (self.n * self.sum_x2 - tf.square(self.sum_x)) * 
+            (self.n * self.sum_y2 - tf.square(self.sum_y))
+        )
+        r = numerator / denominator
+        return tf.cast(tf.square(r), self.prec)  # Return R^2
+
+    def reset_states(self):
+        self.sum_xy.assign(0.0, dtype='float32')
+        self.sum_x.assign(0.0, dtype='float32')
+        self.sum_y.assign(0.0, dtype='float32')
+        self.sum_x2.assign(0.0, dtype='float32')
+        self.sum_y2.assign(0.0, dtype='float32')
+        self.n.assign(0.0, dtype='float32')  
+  
+# class R2(RegressionMetrics):
+#   def __init__(self, y_transform = None, name = None, labelDecoder = None, classId = None, prec = 'float32'):
+#     if name is None: name = 'r2'
+#     super().__init__(name, y_transform = y_transform, labelDecoder = labelDecoder, classId=classId, prec=prec)
+#     self.size   = self.add_weight(name='size', initializer='zeros')
+#     self.yTrue  = self.add_weight(name='yTrue', initializer='zeros')
+#     self.yTrue2 = self.add_weight(name='yTrue2', initializer='zeros')
+#     self.yPred  = self.add_weight(name='yPred', initializer='zeros')
+#     self.yPred2 = self.add_weight(name='yPred2', initializer='zeros')
+#     self.prod   = self.add_weight(name='prod', initializer='zeros')
     
-  def update_state(self, y_true, y_pred, sample_weight=None):
-    if self.labelDecoder is not None:
-      y_true = self.labelDecoder(y_true)
-      y_pred = self.labelDecoder(y_pred)
-    if self.classId is None:
-      yTrue = tf.reduce_sum(y_true)
-      yPred = tf.reduce_sum(y_pred)
-      yTrue2 = tf.reduce_sum(tf.square(y_true))
-      yPred2 = tf.reduce_sum(tf.square(y_pred))
-      prod = tf.reduce_sum(y_true * y_pred )
-    else:
-      yTrue = tf.reduce_sum(y_true[:,self.classId])
-      yPred = tf.reduce_sum(y_pred[:,self.classId])
-      yTrue2 = tf.reduce_sum(tf.square(y_true[:,self.classId]))
-      yPred2 = tf.reduce_sum(tf.square(y_pred[:,self.classId]))
-      # prod = tf.reduce_sum(y_true[:,self.classId] * y_pred[:,self.classId] )
-      prod = tf.reduce_sum(tf.math.multiply(y_true[:,self.classId],y_pred[:,self.classId])) 
-    if self.classId is not None:
-      size = tf.cast(len(y_pred),self.prec)
-    else:
-      # n = y_pred.shape[0]*y_pred.shape[1]
-      n  = tf.reduce_sum(tf.cast(tf.math.equal(y_pred,y_pred),self.prec))
-      size = tf.cast(n,self.prec)
-    self.size.assign_add(size)   
-    self.yTrue.assign_add(yTrue)   
-    self.yTrue2.assign_add(yTrue2)   
-    self.yPred.assign_add(yPred)   
-    self.yPred2.assign_add(yPred2)   
-    self.prod.assign_add(prod)    
+#   def update_state(self, y_true, y_pred, sample_weight=None):
+#     if self.labelDecoder is not None:
+#       y_true = self.labelDecoder(y_true)
+#       y_pred = self.labelDecoder(y_pred)
+#     if self.classId is None:
+#       yTrue = tf.reduce_sum(y_true)
+#       yPred = tf.reduce_sum(y_pred)
+#       yTrue2 = tf.reduce_sum(tf.square(y_true))
+#       yPred2 = tf.reduce_sum(tf.square(y_pred))
+#       prod = tf.reduce_sum(y_true * y_pred )
+#     else:
+#       yTrue = tf.reduce_sum(y_true[:,self.classId])
+#       yPred = tf.reduce_sum(y_pred[:,self.classId])
+#       yTrue2 = tf.reduce_sum(tf.square(y_true[:,self.classId]))
+#       yPred2 = tf.reduce_sum(tf.square(y_pred[:,self.classId]))
+#       # prod = tf.reduce_sum(y_true[:,self.classId] * y_pred[:,self.classId] )
+#       prod = tf.reduce_sum(tf.math.multiply(y_true[:,self.classId],y_pred[:,self.classId])) 
+#     if self.classId is not None:
+#       size = tf.cast(len(y_pred),self.prec)
+#     else:
+#       # n = y_pred.shape[0]*y_pred.shape[1]
+#       n  = tf.reduce_sum(tf.cast(tf.math.equal(y_pred,y_pred),self.prec))
+#       size = tf.cast(n,self.prec)
+#     self.size.assign_add(size)   
+#     self.yTrue.assign_add(yTrue)   
+#     self.yTrue2.assign_add(yTrue2)   
+#     self.yPred.assign_add(yPred)   
+#     self.yPred2.assign_add(yPred2)   
+#     self.prod.assign_add(prod)    
     
-  def result(self):
-    n = self.size
-    n2 = n*n
-    return tf.square(self.prod/n - self.yTrue * self.yPred / n2) / ( (self.yTrue2/n - tf.square(self.yTrue/n)) * (self.yPred2/n - tf.square(self.yPred/n) ) )
+#   def result(self):
+#     n = self.size
+#     n2 = n*n
+#     return tf.square(self.prod/n - self.yTrue * self.yPred / n2) / ( (self.yTrue2/n - tf.square(self.yTrue/n)) * (self.yPred2/n - tf.square(self.yPred/n) ) )
   
 
 class Recall(BinaryMetrics):
