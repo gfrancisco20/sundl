@@ -520,13 +520,13 @@ class R2b(RegressionMetrics):
         r = numerator / denominator
         return tf.cast(tf.square(r), self.prec)  # Return R^2
 
-    # def reset_state(self):
-    #     self.sum_xy.assign(0.0)
-    #     self.sum_x.assign(0.0)
-    #     self.sum_y.assign(0.0)
-    #     self.sum_x2.assign(0.0)
-    #     self.sum_y2.assign(0.0)
-    #     self.n.assign(0.0)  
+    def reset_state(self):
+        self.sum_xy.assign(0.0)
+        self.sum_x.assign(0.0)
+        self.sum_y.assign(0.0)
+        self.sum_x2.assign(0.0)
+        self.sum_y2.assign(0.0)
+        self.n.assign(0.0)  
   
 class R2(RegressionMetrics):
   def __init__(self, y_transform = None, name = None, labelDecoder = None, classId = None, prec = 'float32'):
