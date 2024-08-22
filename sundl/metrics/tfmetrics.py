@@ -481,7 +481,7 @@ class RMSE(RegressionMetrics):
   
 class R2b(RegressionMetrics):
     def __init__(self, name='r2', **kwargs):
-        super(R2, self).__init__(name=name, **kwargs)
+        super(R2b, self).__init__(name=name, **kwargs)
         self.sum_xy = self.add_weight(name='sum_xy', initializer='zeros', dtype='float32')
         self.sum_x = self.add_weight(name='sum_x', initializer='zeros', dtype='float32')
         self.sum_y = self.add_weight(name='sum_y', initializer='zeros', dtype='float32')
