@@ -459,8 +459,8 @@ class RMSE(RegressionMetrics):
     # mixed prec handling
     self.prec = y_pred.dtype
     if self.prec != 'float32':
-      tf.cast(y_true,'float32') # MSE typically doesn't fit in float16
-      tf.cast(y_pred,'float32')
+      y_true = tf.cast(y_true,'float32') # MSE typically doesn't fit in float16
+      y_pred = tf.cast(y_pred,'float32')
     if self.labelDecoder is not None:
       y_true = self.labelDecoder(y_true)
       y_pred = self.labelDecoder(y_pred)
