@@ -393,13 +393,14 @@ def builDS_video_feature(
       filenames.append(files)
 
       label = dfTimeseries.loc[idx,[f'label_{offLabel}'  for offLabel in ts_off_label_hours]].values
-      label = label.astype(prec)
-
-      # print('nans' , np.isnan(label).sum())
-      if np.isnan(label).sum()>0:
-        ctNan+=1
-        filenames.pop()
-        raise Exception("NaN label : removed from ds")
+      
+      # label = label.astype(prec)
+      # # print('nans' , np.isnan(label).sum())
+      # if np.isnan(label).sum()>0:
+      #   ctNan+=1
+      #   filenames.pop()
+      #   raise Exception("NaN label : removed from ds")
+      
       labels.append(label)
       if ts_off_scalar_hours is not None:
         scalar = dfTimeseries.loc[idx,[f'scalar_{offScalar}'  for offScalar in ts_off_scalar_hours]].values
