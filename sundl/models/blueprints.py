@@ -346,6 +346,7 @@ def build_pretrained_PatchCNN(
     feature_reduction = None,
     lastTfConv = 'top_conv',
     preprocessing = None,
+    top_dropout_rate = 0.2,
     **kwargs
 ):
 
@@ -524,6 +525,7 @@ def build_pretrained_model(
     preprocessing = None,
     pred_L1_reg=None,
     local_pred = False,
+    top_dropout_rate = 0.2,
     **kwargs
 ):
 
@@ -629,7 +631,7 @@ def build_pretrained_model(
     if scalarFeaturesSize is not None and scalarAgregation == 'feature':
       x = tf.keras.layers.Concatenate(axis=1)([x,tf.keras.layers.BatchNormalization()(scalar_input)])
     # x = tf.keras.layers.BatchNormalization()(x)
-    top_dropout_rate = 0.2
+    # top_dropout_rate = 0.2
     x = tf.keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
     if regression:
       if labelSize is None:
