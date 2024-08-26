@@ -541,9 +541,9 @@ def build_pretrained_model(
     preprocc_image = image
 
   if pretainedWeight:
-    model = tfModel(include_top=False, input_tensor=preprocc_image, weights="imagenet",**kwargs)
+    model = tfModel(include_top=False, input_tensor=preprocc_image, weights="imagenet")#,**kwargs)
   else:
-    model = tfModel(include_top=False, input_tensor=preprocc_image, weights=None,**kwargs)
+    model = tfModel(include_top=False, input_tensor=preprocc_image, weights=None)#,**kwargs)
     
   # Freeze the pretrained weights
   model.trainable = not pretainedWeight
