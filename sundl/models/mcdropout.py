@@ -2,7 +2,7 @@ import tensorflow as tf
 from sundl.explainability import getDistributedModel
 
 
-def nnMcDropout(model, dropout_rate):
+def nnMcDropout(model, dropout_rate = None):
     '''
     Create a tf model for Monte-Carlo dropout at prediction
     model : tf model
@@ -17,7 +17,8 @@ def nnMcDropout(model, dropout_rate):
     conf['trainable'] = False
     for layer in conf['layers']:
       if layer["class_name"]=="Dropout":
-        layer["config"]["rate"] = dropout_rate
+        if dropout_rate is not None:
+            layer["config"]["rate"] = dropout_rate
         layer["config"]["trainable"] = True
       # elif "dropout" in layer["config"].keys():
       #   # print('Drop-wth-layer')
@@ -38,7 +39,7 @@ def nnMcDropout(model, dropout_rate):
     
     return modelWithDrops
   
-def pcnnMcDropout(model, dropout_rate, innerCnnLayerName ='time_distributed', num_ptc = 8):
+def pcnnMcDropout(model, dropout_rate = None, innerCnnLayerName ='time_distributed', num_ptc = 8):
   '''
     Create a pcnn for Monte-Carlo dropout at prediction
     model : tf pcnn
